@@ -285,30 +285,81 @@ if "auth_page" not in st.session_state:
 # ==========================================
 # 6. 驗證與登入介面分流 (🌊 文昌國小海洋風雙欄美化版)
 # ==========================================
+
+# ==========================================
+# 6. 驗證與登入介面分流 (🌊 全螢幕海洋背景 x 懸浮毛玻璃卡片版)
+# ==========================================
 if not st.session_state.logged_in:
-    # 注入自訂 CSS，精細調整字體顏色與輸入框質感，使其與海洋藍貼合
-    st.markdown("""
+    import base64
+    import os
+
+    # 1. 自動偵測並讀取圖檔（支援您壓縮後的 png 或 webp）
+    img_filename = "web-0.png"
+    if not os.path.exists(img_filename) and os.path.exists("web-0.webp"):
+        img_filename = "web-0.webp"
+        
+    img_base64 = ""
+    if os.path.exists(img_filename):
+        with open(img_filename, "rb") as f:
+            img_base64 = base64.b64encode(f.read()).decode()
+
+    # 2. 注入進階網頁 CSS 排版：將表單完美「嵌入」並「覆疊」在圖片上方
+    st.markdown(f"""
         <style>
-        /* 微調輸入框元件的下方間距 */
-        .stTextInput { margin-bottom: -5px; }
-        /* 標題改為沉穩的文昌深藍色，並加粗 */
-        h2 { color: #0f4c81 !important; font-weight: 800 !important; letter-spacing: 1px; }
-        h3 { color: #4a5568 !important; font-size: 1.1rem !important; font-weight: 500 !important; }
-        /* 讓 Rerun 的轉圈圈不要擋到中央 */
-        div block-container { padding-top: 2rem; }
+        /* 全螢幕背景圖片配置 */
+        [data-testid="stAppViewContainer"] {{
+            background-image: url("data:image/png;base64,{img_base64}");
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }}
+        
+        /* 隱藏 Streamlit 預設白色背景與上邊條，讓海洋底圖完全顯露 */
+        [data-testid="stHeader"], [data-testid="stMainBlockContainer"] {{
+            background: transparent !important;
+        }}
+        [data-testid="stMainBlockContainer"] {{
+            padding-top: 6.5rem !important; /* 控制登入卡片上下垂直的黃金比例位置 */
+        }}
+        
+        /* 將右側欄位排版轉化為「懸浮毛玻璃卡片」 */
+        div[data-testid="column"]:nth-of-type(2) {{
+            background: rgba(255, 255, 255, 0.88) !important; /* 絕佳對比度的半透明白 */
+            padding: 2.5rem !important;
+            border-radius: 24px !important;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2) !important;
+            border: 1px solid rgba(255, 255, 255, 0.6) !important;
+            backdrop-filter: blur(12px) !important; /* 支援現代瀏覽器的毛玻璃模糊特效 */
+            -webkit-backdrop-filter: blur(12px) !important;
+        }}
+        
+        /* 防干涉防禦：重設並保護卡片內部「按鈕專用欄位」的排版，避免按鈕也變成大卡片 */
+        div[data-testid="column"] div[data-testid="column"] {{
+            background: transparent !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            backdrop-filter: none !important;
+        }}
+        
+        /* 卡片內部 UI 元素美化 */
+        h2 {{ color: #0f4c81 !important; font-weight: 800 !important; margin-top: 0px !important; letter-spacing: 1px; }}
+        h3 {{ color: #4a5568 !important; font-size: 1.05rem !important; font-weight: 500 !important; margin-bottom: 20px !important; }}
+        .stTextInput label {{ color: #2d3748 !important; font-weight: 600 !important; }}
+        .stTextInput {{ margin-bottom: -5px; }}
         </style>
     """, unsafe_allow_html=True)
 
-    # 建立左右分割版面：左側 55% 放文昌國小精美插圖，右側 45% 放操作表單
-    main_col1, main_col2 = st.columns([11, 9], gap="large")
-
+    # 3. 建立網頁左右骨架：左側 13 權重完全留白（透出大鯨魚與船隻），右側 9 權重承載卡片
+    main_col1, main_col2 = st.columns([13, 9], gap="large")
+    
     with main_col1:
-        # 容器內直接放滿版校園大航海背板插圖
-        st.image("web-0.webp", use_container_width=True)
-
+        # 故意保持完全乾淨不放任何元件，讓左側與中央的學校大航海主視覺完美呈現
+        st.write("") 
+        
     with main_col2:
-        # 右側直式精緻登入卡片區
-        st.write("") # 稍微往下推一點點
+        # 右側區域會被上面的 CSS 自動捕獲，渲染成精美懸浮卡片
         st.markdown("<h2>🏅 榮譽積點線上系統</h2>", unsafe_allow_html=True)
         st.markdown("<h3>⛵ 文昌國小 · 專屬登錄平台</h3>", unsafe_allow_html=True)
         st.write("---")
@@ -319,7 +370,6 @@ if not st.session_state.logged_in:
             password = st.text_input("🔒 密碼", type="password")
 
             st.write("")
-            # 將按鈕改為 1:1 對稱等寬，並開啟填滿（use_container_width），視覺極度舒適
             btn_col1, btn_col2 = st.columns([1, 1], gap="small")
             with btn_col1:
                 if st.button("🚀 登入系統", type="primary", use_container_width=True):
@@ -397,7 +447,7 @@ if not st.session_state.logged_in:
                     else:
                         st.error("驗證碼不正確，請重新輸入！")
             with btn_col2:
-                if st.button("重新發送 / 返回", use_container_width=True):
+                if f_btn := st.button("重新發送 / 返回", use_container_width=True):
                     st.session_state.auth_page = "forgot_password"
                     st.rerun()
 
