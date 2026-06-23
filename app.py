@@ -48,7 +48,7 @@ st.markdown(
 
 @st.cache_data(ttl=600)  
 def verify_session_token(username, session_token):
-    """【新增】驗證安全 Token，高頻重整網頁時直接走快取，完全不消耗 Firebase 讀取額度"""
+    """驗證安全 Token，高頻重整網頁時直接走快取，完全不消耗 Firebase 讀取額度"""
     user_doc = db.collection("users").document(username).get()
     if user_doc.exists:
         u_data = user_doc.to_dict()
@@ -701,7 +701,7 @@ if role in ["teacher", "coordinator", "admin"]:
             st.dataframe(pd.DataFrame(teacher_history), use_container_width=True)
 
 # ==========================================
-# ⚙️ 8. 管理與後台功能 (🚨 此處實作精準角色權限分流)
+# ⚙️ 8. 管理與後台功能
 # ==========================================
 if role in ["admin", "coordinator"]:
     st.write("---")
@@ -771,70 +771,130 @@ if role in ["admin", "coordinator"]:
     if role == "admin":
         with st.expander("👥 使用者帳號管理（編輯資料 / 停用啟用）"):
             st.subheader("🔍 查詢與編輯師生帳號")
-            search_mode = st.radio("搜尋方式", ["依帳號(ID)搜尋", "依姓名搜尋"], horizontal=True)
-            search_input = st.text_input(f"請輸入關鍵字：", key="user_search_input_new").strip()
             
-            target_doc = None
-            if search_input:
-                if search_mode == "依帳號(ID)搜尋":
-                    target_doc = db.collection("users").document(search_input).get()
-                    if not target_doc.exists:
-                        st.error(f"❌ 找不到帳號為 【{search_input}】 的使用者。")
-                else:
-                    results = db.collection("users").where("name", "==", search_input).limit(1).get()
-                    if len(results) > 0:
-                        target_doc = results[0]
+            # 【核心修正】：增加班級與身分別搜尋
+            search_mode = st.radio(
+                "請選擇搜尋或篩選模式：", 
+                ["依帳號(ID)搜尋", "依姓名關鍵字搜尋", "依班級篩選", "依身分別篩選"], 
+                horizontal=True
+            )
+            
+            matched_users = []  # 用來存放查詢到的所有符合者份文件
+            
+            if search_mode == "依帳號(ID)搜尋":
+                search_id = st.text_input("請輸入精確的使用者帳號 (學號或教師代碼)：").strip()
+                if search_id:
+                    doc = db.collection("users").document(search_id).get()
+                    if doc.exists:
+                        matched_users.append(doc)
                     else:
-                        st.error(f"❌ 找不到姓名為 【{search_input}】 的使用者。")
-            
-            if target_doc and target_doc.exists:
-                td = target_doc.to_dict()
-                st.success(f"🎉 已成功找到 【{td.get('name')}】 的帳號資料：")
+                        st.error(f"❌ 找不到帳號為 【{search_id}】 的使用者。")
+                        
+            elif search_mode == "依姓名關鍵字搜尋":
+                search_name = st.text_input("請輸入姓名關鍵字（支援部分文字模糊查詢）：").strip()
+                if search_name:
+                    # 由於 Firestore 無內建全模糊查詢，這裡拉出少量或用全集在前端篩選，以符合精確管理需求
+                    all_u = db.collection("users").limit(1500).get()
+                    for u in all_u:
+                        if search_name in u.to_dict().get("name", ""):
+                            matched_users.append(u)
+                    if not matched_users:
+                        st.error(f"❌ 找不到姓名包含 【{search_name}】 的使用者。")
+                        
+            elif search_mode == "依班級篩選":
+                # 自動撈取 Firebase 中不重複的所有班級列表
+                all_u = db.collection("users").get()
+                class_set = set()
+                for u in all_u:
+                    ud = u.to_dict()
+                    if ud.get("current_class"): class_set.add(ud.get("current_class"))
+                    if ud.get("homeroom_class"): class_set.add(ud.get("homeroom_class"))
                 
-                with st.form(f"edit_form_{td.get('username')}", clear_on_submit=False):
-                    col_u1, col_u2 = st.columns(2)
-                    with col_u1:
-                        edit_name = st.text_input("姓名", value=td.get("name", ""), key="e_name")
-                        edit_password = st.text_input("登入密碼", value=td.get("password", ""), key="e_pwd")
-                        edit_email = st.text_input("電子郵件 Email", value=td.get("email", ""), key="e_mail")
-                    with col_u2:
-                        role_options = ["student", "teacher", "coordinator", "admin"]
-                        role_index = role_options.index(td.get("role", "student")) if td.get("role") in role_options else 0
-                        edit_role = st.selectbox("系統權限角色", role_options, index=role_index, format_func=lambda x: role_map[x], key="e_role")
-                        
-                        current_status = td.get("status", "active")
-                        status_options = ["active", "disabled"]
-                        status_index = status_options.index(current_status) if current_status in status_options else 0
-                        edit_status = st.radio("帳號狀態控制", status_options, index=status_index, format_func=lambda x: "🟢 啟用" if x == "active" else "🔴 停用", horizontal=True, key="e_status")
+                sorted_classes = sorted(list(class_set))
+                if sorted_classes:
+                    selected_search_class = st.selectbox("請選擇目標班級：", sorted_classes)
+                    if selected_search_class:
+                        for u in all_u:
+                            ud = u.to_dict()
+                            if ud.get("current_class") == selected_search_class or ud.get("homeroom_class") == selected_search_class:
+                                matched_users.append(u)
+                else:
+                    st.info("目前資料庫中無班級紀錄。")
+                    
+            elif search_mode == "依身分別篩選":
+                role_filter_map = {"student": "學生", "teacher": "一般教師", "coordinator": "業務承辦人", "admin": "最高管理者"}
+                selected_role_key = st.selectbox("請選擇身分別角色：", list(role_filter_map.keys()), format_func=lambda x: role_filter_map[x])
+                if selected_role_key:
+                    results = db.collection("users").where("role", "==", selected_role_key).get()
+                    matched_users = list(results)
+            
+            # 當有查找到使用者時，供管理者點選編輯
+            if matched_users:
+                st.write(f"🔍 系統共找到 **{len(matched_users)}** 筆符合的資料：")
+                
+                # 建立下拉選單讓管理者選擇具體想修改哪一位
+                user_options = []
+                user_map = {}
+                for u in matched_users:
+                    ud = u.to_dict()
+                    r_lbl = role_map.get(ud.get("role"), "未知")
+                    cls_lbl = f"({ud.get('current_class') or ud.get('homeroom_class') or '無班級'})"
+                    opt_text = f"{ud.get('username')} - {ud.get('name')} 【{r_lbl}】 {cls_lbl}"
+                    user_options.append(opt_text)
+                    user_map[opt_text] = u
+                    
+                selected_user_text = st.selectbox("👉 請從中選取一位進入下方表單編輯：", user_options)
+                
+                if selected_user_text:
+                    target_doc = user_map[selected_user_text]
+                    td = target_doc.to_dict()
+                    
+                    # 載入編輯表單
+                    st.markdown(f"##### ✏️ 目前正在編輯：**{td.get('name')}** ({td.get('username')}) 的個人檔案")
+                    with st.form(f"edit_form_{td.get('username')}", clear_on_submit=False):
+                        col_u1, col_u2 = st.columns(2)
+                        with col_u1:
+                            edit_name = st.text_input("姓名", value=td.get("name", ""), key="e_name")
+                            edit_password = st.text_input("登入密碼", value=td.get("password", ""), key="e_pwd")
+                            edit_email = st.text_input("電子郵件 Email", value=td.get("email", ""), key="e_mail")
+                        with col_u2:
+                            role_options = ["student", "teacher", "coordinator", "admin"]
+                            role_index = role_options.index(td.get("role", "student")) if td.get("role") in role_options else 0
+                            edit_role = st.selectbox("系統權限角色", role_options, index=role_index, format_func=lambda x: role_map[x], key="e_role")
+                            
+                            current_status = td.get("status", "active")
+                            status_options = ["active", "disabled"]
+                            status_index = status_options.index(current_status) if current_status in status_options else 0
+                            edit_status = st.radio("帳號狀態控制", status_options, index=status_index, format_func=lambda x: "🟢 啟用" if x == "active" else "🔴 停用", horizontal=True, key="e_status")
 
-                    st.write("---")
-                    col_u3, col_u4, col_u5 = st.columns(3)
-                    with col_u3:
-                        edit_class = st.text_input("學生：目前班級", value=td.get("current_class", ""), key="e_class")
-                    with col_u4:
-                        edit_seat = st.text_input("學生：目前座號", value=td.get("current_seat_no", ""), key="e_seat")
-                    with col_u5:
-                        edit_homeroom = st.text_input("教師：級任班級", value=td.get("homeroom_class", ""), key="e_hr")
-                        
-                    submit_changes = st.form_submit_button("💾 確認保存修改資料", type="primary")
-                    if submit_changes:
-                        if not edit_name or not edit_password:
-                            st.error("姓名與密碼為必填欄位！")
-                        else:
-                            update_data = {
-                                "name": edit_name.strip(),
-                                "password": edit_password.strip(),
-                                "email": edit_email.strip(),
-                                "role": edit_role,
-                                "status": edit_status,
-                                "current_class": edit_class.strip(),
-                                "current_seat_no": edit_seat.strip().zfill(2) if edit_seat.strip() else "",
-                                "homeroom_class": edit_homeroom.strip()
-                            }
-                            db.collection("users").document(td.get("username")).update(update_data)
-                            st.success(f"✅ 資料更新成功！")
-                            refresh_all_system_caches() 
-                            st.rerun()
+                        st.write("---")
+                        col_u3, col_u4, col_u5 = st.columns(3)
+                        with col_u3:
+                            edit_class = st.text_input("學生：目前班級 (例如 101)", value=td.get("current_class", ""), key="e_class")
+                        with col_u4:
+                            edit_seat = st.text_input("學生：目前座號", value=td.get("current_seat_no", ""), key="e_seat")
+                        with col_u5:
+                            edit_homeroom = st.text_input("教師：級任班級 (例如 101)", value=td.get("homeroom_class", ""), key="e_hr")
+                            
+                        submit_changes = st.form_submit_button("💾 確認保存修改資料", type="primary")
+                        if submit_changes:
+                            if not edit_name or not edit_password:
+                                st.error("姓名與密碼為必填欄位！")
+                            else:
+                                update_data = {
+                                    "name": edit_name.strip(),
+                                    "password": edit_password.strip(),
+                                    "email": edit_email.strip(),
+                                    "role": edit_role,
+                                    "status": edit_status,
+                                    "current_class": edit_class.strip(),
+                                    "current_seat_no": edit_seat.strip().zfill(2) if edit_seat.strip() else "",
+                                    "homeroom_class": edit_homeroom.strip()
+                                }
+                                db.collection("users").document(td.get("username")).update(update_data)
+                                st.success(f"✅ 【{edit_name}】的資料更新成功！")
+                                refresh_all_system_caches() 
+                                st.rerun()
 
         with st.expander("🛠️ 榮譽積點分類調整設定"):
             current_cats = get_categories()
