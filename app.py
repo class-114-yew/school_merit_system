@@ -279,14 +279,6 @@ if "auth_page" not in st.session_state:
     st.session_state.auth_page = "login"
 
 # ==========================================
-# 6. 驗證與登入介面分流
-# ==========================================
-
-# ==========================================
-# 6. 驗證與登入介面分流 (🌊 文昌國小海洋風雙欄美化版)
-# ==========================================
-
-# ==========================================
 # 6. 驗證與登入介面分流 (🌊 全螢幕海洋背景 x 懸浮毛玻璃卡片版)
 # ==========================================
 if not st.session_state.logged_in:
@@ -708,7 +700,7 @@ if role in ["admin", "coordinator"]:
                         })
                 
                 if not achieved_rows:
-                    st.info("💡 核算完成：目前全校尚無任何學生達到最低的榮譽檻分數。")
+                    st.info("💡 核算完成：目前全校尚無 any 學生達到最低的榮譽檻分數。")
                 else:
                     df_achieved = pd.DataFrame(achieved_rows).sort_values(["班級", "座號"])
                     st.success(f"🎉 核算成功！目前全校共有 **{len(df_achieved)}** 位學生達標榮譽門檻。")
@@ -923,8 +915,7 @@ if role in ["admin", "coordinator"]:
                     refresh_all_system_caches()
                     st.rerun()
 
-    
-       with st.expander("📊 全校師生名單 Excel 批次匯入"):
+    with st.expander("📊 全校師生名單 Excel 批次匯入"):
         st.subheader("上傳新學期 Excel 名單")
         import_type = st.radio("請選擇欲匯入的名單類型：", ["學生名單 (含新班級座號)", "教師名單 (含導師配置)"], horizontal=True)
         
@@ -958,11 +949,6 @@ if role in ["admin", "coordinator"]:
         st.write("") # 微調留空增加美感間距
         # ==========================================
         
-        uploaded_file = st.file_uploader("請選擇 Excel 檔案 (.xlsx)", type=["xlsx"])
-        
-        if uploaded_file is not None:
-            # ---- 以下維持您原本的高效 Firebase 批次同步邏輯不變 ----
-  
         uploaded_file = st.file_uploader("請選擇 Excel 檔案 (.xlsx)", type=["xlsx"])
         
         if uploaded_file is not None:
