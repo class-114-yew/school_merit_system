@@ -43,7 +43,7 @@ st.markdown(
 )
 
 # ==========================================
-# ⚡ 2. 🚀 高性能定向快取區
+# 2. 🚀 高性能定向快取區
 # ==========================================
 
 @st.cache_data(ttl=600)  
@@ -153,7 +153,7 @@ def get_cached_student_logs(username):
         data.append({
             "日期": time_str,
             "分類": d.get("category"),
-            "點數": d.get("points", 1), # 顯示記錄的點數
+            "點數": d.get("points", 1), 
             "事由/備註": d.get("reason"),
             "給點教師": d.get("teacher_id"),
             "raw_ts": ts if ts else datetime.min
@@ -172,13 +172,13 @@ def get_cached_teacher_logs(username):
             "日期": ld.get("date_str"), 
             "學生學號": ld.get("student_id"), 
             "分類": ld.get("category"), 
-            "點數": ld.get("points", 1), # 顯示記錄的點數
+            "點數": ld.get("points", 1), 
             "事由": ld.get("reason")
         })
     return history
 
 # ==========================================
-# 🛠️ 3. 精準快取沖刷控制閥
+# 3. 精準快取沖刷控制閥
 # ==========================================
 def refresh_point_related_caches():
     get_cached_students_by_class.clear() 
@@ -193,7 +193,7 @@ def refresh_all_system_caches():
     get_cached_homeroom_report.clear()
     get_cached_student_logs.clear()
     get_cached_teacher_logs.clear()
-    verify_session_token.clear() # 同步清理驗證快取
+    verify_session_token.clear() 
 
 # ==========================================
 # 4. 核心功能函式
@@ -216,18 +216,15 @@ def send_verification_email(to_email, code):
         return False, f"郵件發送失敗: {e}"
 
 def send_report_email_with_csv(to_email, df, report_title):
-    """【新增功能】將 DataFrame 轉為 CSV 並作為附件自動 E-mail 給管理者"""
     try:
         msg = MIMEMultipart()
         msg["Subject"] = f"🏅【校內榮譽積點系統】{report_title}"
         msg["From"] = SMTP_USER
         msg["To"] = to_email
         
-        # 信件本文
         body = f"您好：\n\n這是系統為您自動核算並導出的「{report_title}」。\n全校目前已達榮譽階級門檻之學生名單詳見附件 CSV 檔案。\n\n提示：附件已採用內置 UTF-8-BOM 編碼，您可直接使用 Excel 雙擊開啟，絕不卡中文亂碼。\n\n系統自動發送信件 - 請勿直接回覆"
         msg.attach(MIMEText(body, "plain", "utf-8"))
         
-        # 轉換 CSV 資料夾帶
         csv_data = df.to_csv(index=False).encode('utf-8-sig')
         part = MIMEBase('application', 'octet-stream')
         part.set_payload(csv_data)
@@ -235,7 +232,6 @@ def send_report_email_with_csv(to_email, df, report_title):
         part.add_header('Content-Disposition', f'attachment; filename="Honor_Milestone_Report_{datetime.now().strftime("%Y%m%d")}.csv"')
         msg.attach(part)
         
-        # 發信
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
         server.login(SMTP_USER, SMTP_PASSWORD)
@@ -255,7 +251,6 @@ def get_categories():
         return default_list
 
 def add_merit_point(teacher_id, teacher_role, student_id, category, reason, points=1):
-    """新增 points 參數，支援動態點數登錄"""
     today_str = datetime.now().strftime("%Y-%m-%d")
     student_doc = db.collection("users").document(student_id).get()
     if not student_doc.exists:
@@ -279,12 +274,12 @@ def add_merit_point(teacher_id, teacher_role, student_id, category, reason, poin
         "student_id": student_id,
         "category": category,
         "reason": reason,
-        "points": points, # 記錄本次加點點數
+        "points": points, 
         "timestamp": firestore.SERVER_TIMESTAMP,
         "date_str": today_str
     })
     student_ref = db.collection("users").document(student_id)
-    fb_batch.update(student_ref, {"total_points": firestore.Increment(points)}) # 增加指定點數
+    fb_batch.update(student_ref, {"total_points": firestore.Increment(points)}) 
     
     fb_batch.commit()
     return True, "登錄成功"
@@ -298,19 +293,17 @@ if "logged_in" not in st.session_state:
 if "auth_page" not in st.session_state:
     st.session_state.auth_page = "login"
 
-# 🔄 【新增：網頁重新整理自動恢復登入機制】
 if not st.session_state.logged_in and "login_token" in st.query_params:
     try:
         token_str = st.query_params["login_token"]
         if ":" in token_str:
             q_username, q_token = token_str.split(":", 1)
-            # 呼叫防刷快取函數進行驗證，高頻重整完全不消耗 Firebase 額度
             cached_user = verify_session_token(q_username, q_token)
             if cached_user:
                 st.session_state.logged_in = True
                 st.session_state.user_info = cached_user
     except Exception:
-        pass  # 發生任何異常（如網址 Token 被亂改）直接忽略，走正常登入流程
+        pass  
 
 # ==========================================
 # 6. 驗證與登入介面分流 (🌊 全螢幕海洋背景 x 懸浮毛玻璃卡片版)
@@ -319,7 +312,6 @@ if not st.session_state.logged_in:
     import base64
     import os
 
-    # 1. 自動偵測並讀取圖檔（支援您壓縮後的 png 或 webp）
     img_filename = "web-0.png"
     if not os.path.exists(img_filename) and os.path.exists("web-0.webp"):
         img_filename = "web-0.webp"
@@ -329,10 +321,8 @@ if not st.session_state.logged_in:
         with open(img_filename, "rb") as f:
             img_base64 = base64.b64encode(f.read()).decode()
 
-    # 2. 注入進階網頁 CSS 排版：將表單完美「嵌入」並「覆疊」在圖片上方
     st.markdown(f"""
         <style>
-        /* 全螢幕背景圖片配置 */
         [data-testid="stAppViewContainer"] {{
             background-image: url("data:image/png;base64,{img_base64}");
             background-size: cover;
@@ -340,27 +330,21 @@ if not st.session_state.logged_in:
             background-repeat: no-repeat;
             background-attachment: fixed;
         }}
-        
-        /* 隱藏 Streamlit 預設白色背景與上邊條，讓海洋底圖完全顯露 */
         [data-testid="stHeader"], [data-testid="stMainBlockContainer"] {{
             background: transparent !important;
         }}
         [data-testid="stMainBlockContainer"] {{
-            padding-top: 6.5rem !important; /* 控制登入卡片上下垂直的黃金比例位置 */
+            padding-top: 6.5rem !important; 
         }}
-        
-        /* 將右側欄位排版轉化為「懸浮毛玻璃卡片」 */
         div[data-testid="column"]:nth-of-type(2) {{
-            background: rgba(255, 255, 255, 0.88) !important; /* 絕佳對比度的半透明白 */
+            background: rgba(255, 255, 255, 0.88) !important; 
             padding: 2.5rem !important;
             border-radius: 24px !important;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2) !important;
             border: 1px solid rgba(255, 255, 255, 0.6) !important;
-            backdrop-filter: blur(12px) !important; /* 支援現代瀏覽器的毛玻璃模糊特效 */
+            backdrop-filter: blur(12px) !important; 
             -webkit-backdrop-filter: blur(12px) !important;
         }}
-        
-        /* 防干涉防禦：重設並保護卡片內部「按鈕專用欄位」的排版，避免按鈕也變成大卡片 */
         div[data-testid="column"] div[data-testid="column"] {{
             background: transparent !important;
             padding: 0 !important;
@@ -368,8 +352,6 @@ if not st.session_state.logged_in:
             border: none !important;
             backdrop-filter: none !important;
         }}
-        
-        /* 卡片內部 UI 元素美化 */
         h2 {{ color: #0f4c81 !important; font-weight: 800 !important; margin-top: 0px !important; letter-spacing: 1px; }}
         h3 {{ color: #4a5568 !important; font-size: 1.05rem !important; font-weight: 500 !important; margin-bottom: 20px !important; }}
         .stTextInput label {{ color: #2d3748 !important; font-weight: 600 !important; }}
@@ -377,20 +359,16 @@ if not st.session_state.logged_in:
         </style>
     """, unsafe_allow_html=True)
 
-    # 3. 建立網頁左右骨架：左側 13 權重完全留白（透出大鯨魚與船隻），右側 9 權重承載卡片
     main_col1, main_col2 = st.columns([13, 9], gap="large")
     
     with main_col1:
-        # 故意保持完全乾淨不放任何元件，讓左側與中央的學校大航海主視覺完美呈現
         st.write("") 
         
     with main_col2:
-        # 右側區域會被上面的 CSS 自動捕獲，渲染成精美懸浮卡片
         st.markdown("<h2>🏅 榮譽積點線上系統</h2>", unsafe_allow_html=True)
         st.markdown("<h3>⛵ 文昌國小 · 專屬登錄平台</h3>", unsafe_allow_html=True)
         st.write("---")
 
-        # 狀態一：標準登入畫面
         if st.session_state.auth_page == "login":
             username = st.text_input("🔑 帳號 (學號 或 教師代碼)")
             password = st.text_input("🔒 密碼", type="password")
@@ -405,14 +383,9 @@ if not st.session_state.logged_in:
                         if u_data.get("status") == "disabled":
                             st.error("🚫 您的帳號已被系統管理員停用，暫時無法登入。")
                         elif u_data.get("password") == password:
-                            # 🎯【新增】生成唯一的隨機安全代碼，供重新整理時驗證狀態
                             import uuid
                             new_token = str(uuid.uuid4())
-                            
-                            # 更新至資料庫（為 1 次寫入，不增加後續重整網頁的讀取額度負擔）
                             db.collection("users").document(username).update({"session_token": new_token})
-                            
-                            # 將 token 寫入網址列中同步保持狀態
                             st.query_params["login_token"] = f"{username}:{new_token}"
                             
                             u_data["session_token"] = new_token
@@ -428,7 +401,6 @@ if not st.session_state.logged_in:
                     st.session_state.auth_page = "forgot_password"
                     st.rerun()
 
-        # 狀態二：忘記密碼頁面
         elif st.session_state.auth_page == "forgot_password":
             st.markdown("<h4>🔒 忘記密碼 - 發送驗證碼</h4>", unsafe_allow_html=True)
             reset_user = st.text_input("請輸入您的帳號 (學號 或 教師代碼)")
@@ -468,7 +440,6 @@ if not st.session_state.logged_in:
                     st.session_state.auth_page = "login"
                     st.rerun()
 
-        # 狀態三：輸入驗證碼頁面
         elif st.session_state.auth_page == "verify_code":
             st.markdown("<h4>🔢 輸入郵件驗證碼</h4>", unsafe_allow_html=True)
             st.info(f"驗證碼已寄送至信箱：\n{st.session_state.reset_target_email}")
@@ -488,7 +459,6 @@ if not st.session_state.logged_in:
                     st.session_state.auth_page = "forgot_password"
                     st.rerun()
 
-        # 狀態四：重新設定新密碼頁面
         elif st.session_state.auth_page == "reset_password":
             st.markdown("<h4>✏️ 設定您的新密碼</h4>", unsafe_allow_html=True)
             new_pwd = st.text_input("請輸入新密碼", type="password")
@@ -524,20 +494,16 @@ with st.sidebar:
     st.write(f"**帳號**：{user.get('username')}")
     st.write(f"**權限**：{role_map.get(role, '未知')}")
     
-    # 🎯【修改】登出按鈕：主動移除網址 Token 與 Firebase 中的登入綁定紀錄
     if st.button("🚪 登出系統", use_container_width=True):
         if st.session_state.user_info:
             u_name = st.session_state.user_info.get("username")
             u_token = st.session_state.user_info.get("session_token")
             try:
-                # 1. 移除資料庫中的驗證 Token
                 db.collection("users").document(u_name).update({"session_token": firestore.DELETE_FIELD})
-                # 2. 清除該使用者在本機伺服器上的驗證快取
                 verify_session_token.clear(u_name, u_token)
             except:
                 pass
         
-        # 3. 清理網址參數與全域狀態，完美回歸登入頁
         if "login_token" in st.query_params:
             del st.query_params["login_token"]
         st.session_state.logged_in = False
@@ -549,7 +515,7 @@ st.title(f"🏆 榮譽積點系統 - {role_map.get(role)}")
 st.write("---")
 
 # ------------------------------------------
-# 【學生功能 - 保留精美大頭像與進度卡】
+# 【學生功能】
 # ------------------------------------------
 if role == "student":
     st.header("📊 我的積點專區")
@@ -601,14 +567,12 @@ if role in ["teacher", "coordinator", "admin"]:
         sel_category = st.selectbox("選擇優良表現分類", categories)
         reason = st.text_input("優良事由 / 備註说明", placeholder="例如：主動協助搬運體育器材")
         
-        # 🎯【新增需求 2】登錄點數數字設定欄位（移到上方做為通用欄位）
         points_to_add = st.number_input("🔢 登錄點數設定", min_value=1, value=1, step=1)
         
         if mode == "依學號單筆登錄":
             s_id = st.text_input("請輸入學生學號：")
             if st.button("送出登錄", type="primary"):
                 if s_id and sel_category:
-                    # 傳入動態設定的點數
                     success, msg = add_merit_point(user["username"], role, s_id.strip(), sel_category, reason, points=points_to_add)
                     if success: 
                         st.success(msg)
@@ -631,7 +595,6 @@ if role in ["teacher", "coordinator", "admin"]:
                 else:
                     st.write("---")
                     
-                    # 🎯【新增需求 1】藉由 st.session_state 狀態控管，完美連動全班勾選功能
                     def toggle_all_students():
                         all_checked = st.session_state[f"all_cb_{target_class}"]
                         for s in student_list:
@@ -649,7 +612,6 @@ if role in ["teacher", "coordinator", "admin"]:
                     grid_cols = st.columns(4) 
                     for idx, s in enumerate(student_list):
                         with grid_cols[idx % 4]:
-                            # 移除原先不穩定的 value=select_all，改由 key 與 session_state 自主綁定控管
                             is_checked = st.checkbox(s["label"], key=f"chk_{target_class}_{s['id']}")
                             if is_checked:
                                 selected_ids.append(s["id"])
@@ -685,13 +647,12 @@ if role in ["teacher", "coordinator", "admin"]:
                                     "student_id": s_id,
                                     "category": sel_category,
                                     "reason": reason,
-                                    "points": points_to_add, # 寫入自訂點數
+                                    "points": points_to_add, 
                                     "timestamp": firestore.SERVER_TIMESTAMP,
                                     "date_str": today_str
                                 })
                                 
                                 student_ref = db.collection("users").document(s_id)
-                                # 🎯【修改】動態累加指定的點數設定值 points_to_add
                                 fb_batch.update(student_ref, {"total_points": firestore.Increment(points_to_add)})
                                 success_count += 1
                             
@@ -740,16 +701,16 @@ if role in ["teacher", "coordinator", "admin"]:
             st.dataframe(pd.DataFrame(teacher_history), use_container_width=True)
 
 # ==========================================
-# ⚙️ 8. 管理與後台功能
+# ⚙️ 8. 管理與後台功能 (🚨 此處實作精準角色權限分流)
 # ==========================================
 if role in ["admin", "coordinator"]:
     st.write("---")
     st.header("⚙️ 業務承辦與管理後台")
     
     # ------------------------------------------
-    # 🎯 【全新優化需求：依現行設定門檻全自動導出與寄信通知】
+    # 🎯【通用功能：開放給 管理者(admin) 與 業務承辦人(coordinator)】
     # ------------------------------------------
-    with st.expander("📅 全校榮譽達標名單核算 (自動導出與 Mail 通知)"):
+    with st.expander("📅 全校榮譽達標名單核算 (自動導出與 Mail 通知)", expanded=True):
         st.subheader("🔍 依據現行設定門檻自動比對全校學生")
         st.write("系統將自動抓取目前執行中的所有海洋階段門檻值，並與全校學生當前總積點進行比對，自動匯出已跨越榮譽門檻之名單。")
         
@@ -763,10 +724,8 @@ if role in ["admin", "coordinator"]:
                     sd = s.to_dict()
                     u_pts = sd.get("total_points", 0)
                     
-                    # 核對該生目前的階段、頭像與品項
                     avatar, s_name, reward = get_student_avatar_and_stage(u_pts, stages_config)
                     
-                    # 只要不是最低的初始「潛水初心階段」，就代表該生至少達到一項現行門檻，將其納入導出範圍
                     if s_name != "潛水初心階段":
                         achieved_rows.append({
                             "積點階段名稱": s_name,
@@ -784,10 +743,8 @@ if role in ["admin", "coordinator"]:
                     df_achieved = pd.DataFrame(achieved_rows).sort_values(["班級", "座號"])
                     st.success(f"🎉 核算成功！目前全校共有 **{len(df_achieved)}** 位學生達標榮譽門檻。")
                     
-                    # 1. 呈現列表供網頁端直接檢視
                     st.dataframe(df_achieved, use_container_width=True, hide_index=True)
                     
-                    # 2. 供管理者在線上直接下載
                     csv_data = df_achieved.to_csv(index=False).encode('utf-8-sig')
                     st.download_button(
                         label="📥 點此手動下載此達標名單 (CSV 檔案)",
@@ -796,7 +753,6 @@ if role in ["admin", "coordinator"]:
                         mime="text/csv"
                     )
                     
-                    # 3. 自動將匯出的資料信件 Mail 給目前登入的管理者
                     admin_email = user.get("email")
                     if admin_email and "@" in admin_email:
                         with st.spinner("✉️ 正在將達標名單打包為附件並發送至您的信箱..."):
@@ -807,92 +763,92 @@ if role in ["admin", "coordinator"]:
                             else:
                                 st.error(mail_msg)
                     else:
-                        st.warning("⚠️ 提示：由於您目前的帳號資料內未綁定或填寫正確的 Email，系統無法執行自動寄信。請在下方帳號管理中為自己填寫電子郵件。")
-
-    with st.expander("👥 使用者帳號管理（編輯資料 / 停用啟用）"):
-        st.subheader("🔍 查詢與編輯師生帳號")
-        search_mode = st.radio("搜尋方式", ["依帳號(ID)搜尋", "依姓名搜尋"], horizontal=True)
-        search_input = st.text_input(f"請輸入關鍵字：", key="user_search_input_new").strip()
-        
-        target_doc = None
-        if search_input:
-            if search_mode == "依帳號(ID)搜尋":
-                target_doc = db.collection("users").document(search_input).get()
-                if not target_doc.exists:
-                    st.error(f"❌ 找不到帳號為 【{search_input}】 的使用者。")
-            else:
-                results = db.collection("users").where("name", "==", search_input).limit(1).get()
-                if len(results) > 0:
-                    target_doc = results[0]
-                else:
-                    st.error(f"❌ 找不到姓名為 【{search_input}】 的使用者。")
-        
-        if target_doc and target_doc.exists:
-            td = target_doc.to_dict()
-            st.success(f"🎉 已成功找到 【{td.get('name')}】 的帳號資料：")
-            
-            with st.form(f"edit_form_{td.get('username')}", clear_on_submit=False):
-                col_u1, col_u2 = st.columns(2)
-                with col_u1:
-                    edit_name = st.text_input("姓名", value=td.get("name", ""), key="e_name")
-                    edit_password = st.text_input("登入密碼", value=td.get("password", ""), key="e_pwd")
-                    edit_email = st.text_input("電子郵件 Email", value=td.get("email", ""), key="e_mail")
-                with col_u2:
-                    role_options = ["student", "teacher", "coordinator", "admin"]
-                    role_index = role_options.index(td.get("role", "student")) if td.get("role") in role_options else 0
-                    edit_role = st.selectbox("系統權限角色", role_options, index=role_index, format_func=lambda x: role_map[x], key="e_role")
-                    
-                    current_status = td.get("status", "active")
-                    status_options = ["active", "disabled"]
-                    status_index = status_options.index(current_status) if current_status in status_options else 0
-                    edit_status = st.radio("帳號狀態控制", status_options, index=status_index, format_func=lambda x: "🟢 啟用" if x == "active" else "🔴 停用", horizontal=True, key="e_status")
-
-                st.write("---")
-                col_u3, col_u4, col_u5 = st.columns(3)
-                with col_u3:
-                    edit_class = st.text_input("學生：目前班級", value=td.get("current_class", ""), key="e_class")
-                with col_u4:
-                    edit_seat = st.text_input("學生：目前座號", value=td.get("current_seat_no", ""), key="e_seat")
-                with col_u5:
-                    edit_homeroom = st.text_input("教師：級任班級", value=td.get("homeroom_class", ""), key="e_hr")
-                    
-                submit_changes = st.form_submit_button("💾 確認保存修改資料", type="primary")
-                if submit_changes:
-                    if not edit_name or not edit_password:
-                        st.error("姓名與密碼為必填欄位！")
-                    else:
-                        update_data = {
-                            "name": edit_name.strip(),
-                            "password": edit_password.strip(),
-                            "email": edit_email.strip(),
-                            "role": edit_role,
-                            "status": edit_status,
-                            "current_class": edit_class.strip(),
-                            "current_seat_no": edit_seat.strip().zfill(2) if edit_seat.strip() else "",
-                            "homeroom_class": edit_homeroom.strip()
-                        }
-                        db.collection("users").document(td.get("username")).update(update_data)
-                        st.success(f"✅ 資料更新成功！")
-                        refresh_all_system_caches() 
-                        st.rerun()
-
-    with st.expander("🛠️ 榮譽積點分類調整設定"):
-        current_cats = get_categories()
-        st.write(f"**開立分類**： {', '.join(current_cats)}")
-        new_cat = st.text_input("新增分類名稱：")
-        if st.button("確認新增分類"):
-            if new_cat and new_cat not in current_cats:
-                current_cats.append(new_cat)
-                db.collection("system_settings").document("categories").set({"list": current_cats})
-                st.success(f"已成功新增分類：{new_cat}")
-                refresh_all_system_caches()
-                st.rerun()
+                        st.warning("⚠️ 提示：由於您目前的帳號資料內未綁定或填寫正確的 Email，系統無法執行自動寄信。")
 
     # ------------------------------------------
-    # 🌊 【動態下拉式階段管理介面】
+    # 🔒【限制區：唯有 最高管理者(admin) 才能檢視與操作以下進階系統設定】
     # ------------------------------------------
     if role == "admin":
-        with st.expander("🌊 晉級與海洋階段任務設定 (最高管理者專專屬)"):
+        with st.expander("👥 使用者帳號管理（編輯資料 / 停用啟用）"):
+            st.subheader("🔍 查詢與編輯師生帳號")
+            search_mode = st.radio("搜尋方式", ["依帳號(ID)搜尋", "依姓名搜尋"], horizontal=True)
+            search_input = st.text_input(f"請輸入關鍵字：", key="user_search_input_new").strip()
+            
+            target_doc = None
+            if search_input:
+                if search_mode == "依帳號(ID)搜尋":
+                    target_doc = db.collection("users").document(search_input).get()
+                    if not target_doc.exists:
+                        st.error(f"❌ 找不到帳號為 【{search_input}】 的使用者。")
+                else:
+                    results = db.collection("users").where("name", "==", search_input).limit(1).get()
+                    if len(results) > 0:
+                        target_doc = results[0]
+                    else:
+                        st.error(f"❌ 找不到姓名為 【{search_input}】 的使用者。")
+            
+            if target_doc and target_doc.exists:
+                td = target_doc.to_dict()
+                st.success(f"🎉 已成功找到 【{td.get('name')}】 的帳號資料：")
+                
+                with st.form(f"edit_form_{td.get('username')}", clear_on_submit=False):
+                    col_u1, col_u2 = st.columns(2)
+                    with col_u1:
+                        edit_name = st.text_input("姓名", value=td.get("name", ""), key="e_name")
+                        edit_password = st.text_input("登入密碼", value=td.get("password", ""), key="e_pwd")
+                        edit_email = st.text_input("電子郵件 Email", value=td.get("email", ""), key="e_mail")
+                    with col_u2:
+                        role_options = ["student", "teacher", "coordinator", "admin"]
+                        role_index = role_options.index(td.get("role", "student")) if td.get("role") in role_options else 0
+                        edit_role = st.selectbox("系統權限角色", role_options, index=role_index, format_func=lambda x: role_map[x], key="e_role")
+                        
+                        current_status = td.get("status", "active")
+                        status_options = ["active", "disabled"]
+                        status_index = status_options.index(current_status) if current_status in status_options else 0
+                        edit_status = st.radio("帳號狀態控制", status_options, index=status_index, format_func=lambda x: "🟢 啟用" if x == "active" else "🔴 停用", horizontal=True, key="e_status")
+
+                    st.write("---")
+                    col_u3, col_u4, col_u5 = st.columns(3)
+                    with col_u3:
+                        edit_class = st.text_input("學生：目前班級", value=td.get("current_class", ""), key="e_class")
+                    with col_u4:
+                        edit_seat = st.text_input("學生：目前座號", value=td.get("current_seat_no", ""), key="e_seat")
+                    with col_u5:
+                        edit_homeroom = st.text_input("教師：級任班級", value=td.get("homeroom_class", ""), key="e_hr")
+                        
+                    submit_changes = st.form_submit_button("💾 確認保存修改資料", type="primary")
+                    if submit_changes:
+                        if not edit_name or not edit_password:
+                            st.error("姓名與密碼為必填欄位！")
+                        else:
+                            update_data = {
+                                "name": edit_name.strip(),
+                                "password": edit_password.strip(),
+                                "email": edit_email.strip(),
+                                "role": edit_role,
+                                "status": edit_status,
+                                "current_class": edit_class.strip(),
+                                "current_seat_no": edit_seat.strip().zfill(2) if edit_seat.strip() else "",
+                                "homeroom_class": edit_homeroom.strip()
+                            }
+                            db.collection("users").document(td.get("username")).update(update_data)
+                            st.success(f"✅ 資料更新成功！")
+                            refresh_all_system_caches() 
+                            st.rerun()
+
+        with st.expander("🛠️ 榮譽積點分類調整設定"):
+            current_cats = get_categories()
+            st.write(f"**開立分類**： {', '.join(current_cats)}")
+            new_cat = st.text_input("新增分類名稱：")
+            if st.button("確認新增分類"):
+                if new_cat and new_cat not in current_cats:
+                    current_cats.append(new_cat)
+                    db.collection("system_settings").document("categories").set({"list": current_cats})
+                    st.success(f"已成功新增分類：{new_cat}")
+                    refresh_all_system_caches()
+                    st.rerun()
+
+        with st.expander("🌊 晉級與海洋階段任務設定"):
             st.subheader("⚙️ 線上自訂/增刪榮譽階段與獎勵門檻")
             stages_list = get_cached_ocean_stages()
             
@@ -947,13 +903,13 @@ if role in ["admin", "coordinator"]:
                     edit_pts = st.number_input("達標總點數門檻值 (必填識別代碼)", min_value=0, value=default_pts, step=10)
                     edit_stage_name = st.text_input("海洋階段名稱", value=default_name)
                 with col_f2:
-                    edit_avatar = st.text_input("代表頭像 (可填 Emoji，或直接貼入 HTML 圖片代碼如 <img src='網址' width='48'>)", value=default_avatar)
+                    edit_avatar = st.text_input("代表頭像 (可填 Emoji，或直接貼入 HTML 圖片代碼)", value=default_avatar)
                     edit_reward = st.text_input("解鎖發放品項描述", value=default_reward)
                 
                 st.markdown(
                     f"""
                     <div style="background-color: #f8fafc; padding: 12px; border-radius: 8px; border: 1px dashed #cbd5e1; margin-top: 10px;">
-                        <strong>✨ 圖標預覽效果 (系統會自動以 48px ~ 72px 放大顯示)：</strong>
+                        <strong>✨ 圖標預覽效果：</strong>
                         <div style="font-size: 48px; margin-top: 5px; line-height: 1;">{edit_avatar}</div>
                     </div>
                     """, 
@@ -994,99 +950,90 @@ if role in ["admin", "coordinator"]:
                     refresh_all_system_caches()
                     st.rerun()
 
-    with st.expander("📊 全校師名單 Excel 批次匯入"):
-        st.subheader("上傳新學期 Excel 名單")
-        import_type = st.radio("請選擇欲匯入的名單類型：", ["學生名單 (含新班級座號)", "教師名單 (含導師配置)"], horizontal=True)
-        
-        # ==========================================
-        # ✨ 新增：動態對應範例檔下載功能 (自動讀取實體檔案)
-        # ==========================================
-        import os
-        
-        # 依據選擇動態指派檔案路徑與按鈕標籤
-        if import_type == "學生名單 (含新班級座號)":
-            template_filename = "student-template.xlsx"
-            template_label = "📥 下載 學生名單範例檔 (student-template.xlsx)"
-        else:
-            template_filename = "teacher-template.xlsx"
-            template_label = "📥 下載 教師名單範例檔 (teacher-template.xlsx)"
+        with st.expander("📊 全校師名單 Excel 批次匯入"):
+            st.subheader("上傳新學期 Excel 名單")
+            import_type = st.radio("請選擇欲匯入的名單類型：", ["學生名單 (含新班級座號)", "教師名單 (含導師配置)"], horizontal=True)
             
-        # 安全防禦機制：偵測專案目錄下是否存在該範例 Excel
-        if os.path.exists(template_filename):
-            with open(template_filename, "rb") as f:
-                st.download_button(
-                    label=template_label,
-                    data=f,
-                    file_name=template_filename,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"dl_btn_{template_filename}" # 綁定動態 key 防止 Streamlit 元件衝突
-                )
-        else:
-            # 若管理員尚未放置檔案，貼心給予警示提示，不讓系統崩潰
-            st.caption(f"⚠️ 系統提示：主機根目錄內未偵測到實體檔案 `{template_filename}`，請確認已放置該 Excel 範例檔。")
-            
-        st.write("") # 微調留空增加美感間距
-        # ==========================================
-        
-        uploaded_file = st.file_uploader("請選擇 Excel 檔案 (.xlsx)", type=["xlsx"])
-        
-        if uploaded_file is not None:
-            try:
-                df = pd.read_excel(uploaded_file).fillna("")
-                df = df.astype(str).map(lambda x: x.strip())
-                st.write("📋 預覽即將匯入的資料：")
-                st.dataframe(df.head())
+            import os
+            if import_type == "學生名單 (含新班級座號)":
+                template_filename = "student-template.xlsx"
+                template_label = "📥 下載 學生名單範例檔 (student-template.xlsx)"
+            else:
+                template_filename = "teacher-template.xlsx"
+                template_label = "📥 下載 教師名單範例檔 (teacher-template.xlsx)"
                 
-                if st.button("🚀 確認無誤，執行批次同步到 Firebase", type="primary"):
-                    batch = db.batch()
-                    success_count = 0
+            if os.path.exists(template_filename):
+                with open(template_filename, "rb") as f:
+                    st.download_button(
+                        label=template_label,
+                        data=f,
+                        file_name=template_filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key=f"dl_btn_{template_filename}" 
+                    )
+            else:
+                st.caption(f"⚠️ 系統提示：主機根目錄內未偵測到實體檔案 `{template_filename}`。")
+                
+            st.write("") 
+            uploaded_file = st.file_uploader("請選擇 Excel 檔案 (.xlsx)", type=["xlsx"])
+            
+            if uploaded_file is not None:
+                try:
+                    df = pd.read_excel(uploaded_file).fillna("")
+                    df = df.astype(str).map(lambda x: x.strip())
+                    st.write("📋 預覽即將匯入的資料：")
+                    st.dataframe(df.head())
                     
-                    if import_type == "學生名單 (含新班級座號)":
-                        required_cols = ["username", "name", "password", "current_class", "current_seat_no", "email"]
-                        if not all(c in df.columns for c in required_cols):
-                            st.error(f"Excel 欄位不正確！必須包含：{required_cols}")
+                    if st.button("🚀 確認無誤，執行批次同步到 Firebase", type="primary"):
+                        batch = db.batch()
+                        success_count = 0
+                        
+                        if import_type == "學生名單 (含新班級座號)":
+                            required_cols = ["username", "name", "password", "current_class", "current_seat_no", "email"]
+                            if not all(c in df.columns for c in required_cols):
+                                st.error(f"Excel 欄位不正確！必須包含：{required_cols}")
+                            else:
+                                for _, row in df.iterrows():
+                                    doc_ref = db.collection("users").document(row["username"])
+                                    batch.set(doc_ref, {
+                                        "username": row["username"],
+                                        "name": row["name"],
+                                        "password": row["password"],
+                                        "current_class": row["current_class"],
+                                        "current_seat_no": str(row["current_seat_no"]).zfill(2),
+                                        "email": row["email"],
+                                        "role": "student",
+                                        "status": "active",
+                                        "total_points": 0  
+                                    }, merge=True)
+                                    success_count += 1
+                                    if success_count % 400 == 0:
+                                        batch.commit()
+                                        batch = db.batch()
                         else:
-                            for _, row in df.iterrows():
-                                doc_ref = db.collection("users").document(row["username"])
-                                batch.set(doc_ref, {
-                                    "username": row["username"],
-                                    "name": row["name"],
-                                    "password": row["password"],
-                                    "current_class": row["current_class"],
-                                    "current_seat_no": str(row["current_seat_no"]).zfill(2),
-                                    "email": row["email"],
-                                    "role": "student",
-                                    "status": "active",
-                                    "total_points": 0  
-                                }, merge=True)
-                                success_count += 1
-                                if success_count % 400 == 0:
-                                    batch.commit()
-                                    batch = db.batch()
-                    else:
-                        required_cols = ["username", "name", "password", "homeroom_class", "email"]
-                        if not all(c in df.columns for c in required_cols):
-                            st.error(f"Excel 欄位不正確！必須包含：{required_cols}")
-                        else:
-                            for _, row in df.iterrows():
-                                doc_ref = db.collection("users").document(row["username"])
-                                batch.set(doc_ref, {
-                                    "username": row["username"],
-                                    "name": row["name"],
-                                    "password": row["password"],
-                                    "homeroom_class": row["homeroom_class"],
-                                    "email": row["email"],
-                                    "role": "teacher",
-                                    "status": "active"
-                                }, merge=True)
-                                success_count += 1
-                                if success_count % 400 == 0:
-                                    batch.commit()
-                                    batch = db.batch()
-                    
-                    batch.commit()
-                    st.success(f"🔥 同步成功！已處理 {success_count} 筆資料。")
-                    refresh_all_system_caches() 
-                    st.balloons()
-            except Exception as e:
-                st.error(f"讀取檔案失敗。錯誤訊息: {e}")
+                            required_cols = ["username", "name", "password", "homeroom_class", "email"]
+                            if not all(c in df.columns for c in required_cols):
+                                st.error(f"Excel 欄位不正確！必須包含：{required_cols}")
+                            else:
+                                for _, row in df.iterrows():
+                                    doc_ref = db.collection("users").document(row["username"])
+                                    batch.set(doc_ref, {
+                                        "username": row["username"],
+                                        "name": row["name"],
+                                        "password": row["password"],
+                                        "homeroom_class": row["homeroom_class"],
+                                        "email": row["email"],
+                                        "role": "teacher",
+                                        "status": "active"
+                                    }, merge=True)
+                                    success_count += 1
+                                    if success_count % 400 == 0:
+                                        batch.commit()
+                                        batch = db.batch()
+                        
+                        batch.commit()
+                        st.success(f"🔥 同步成功！已處理 {success_count} 筆資料。")
+                        refresh_all_system_caches() 
+                        st.balloons()
+                except Exception as e:
+                    st.error(f"讀取檔案失敗。錯誤訊息: {e}")
