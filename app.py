@@ -67,24 +67,24 @@ def get_cached_ocean_stages():
         # 初始化預設值
         default_stages = [
             {"points": 1500, "stage": "終極榮譽頂峰", "avatar": "🏆", "reward": "七級文昌之星榮譽獎牌"},
-            {"points": 1350, "stage": "菁英海洋階段", "avatar": "👑", "reward": "六級徽章"},
-            {"points": 1250, "stage": "菁英海洋階段", "avatar": "👑", "reward": "校長室下午茶點心"},
-            {"points": 1150, "stage": "菁英海洋階段", "avatar": "👑", "reward": "六級獎狀 1 張"},
-            {"points": 1050, "stage": "深海探險階段", "avatar": "🦑", "reward": "五級榮譽徽章"},
-            {"points": 960,  "stage": "深海探險階段", "avatar": "🦑", "reward": "五級獎狀 1 張"},
-            {"points": 870,  "stage": "深海探險階段", "avatar": "🦑", "reward": "兌換券"},
-            {"points": 780,  "stage": "大洋探險階段", "avatar": "🐋", "reward": "四級榮譽徽章"},
-            {"points": 700,  "stage": "大洋探險階段", "avatar": "🐋", "reward": "四級獎狀 1 張"},
-            {"points": 620,  "stage": "大洋探險階段", "avatar": "🐋", "reward": "兌換券"},
-            {"points": 540,  "stage": "高級海洋階段", "avatar": "🦈", "reward": "三級榮譽徽章"},
-            {"points": 470,  "stage": "高級海洋階段", "avatar": "🦈", "reward": "三級獎狀 1 張"},
-            {"points": 400,  "stage": "高級海洋階段", "avatar": "🦈", "reward": "兌換券"},
-            {"points": 330,  "stage": "中級海洋階段", "avatar": "🐠", "reward": "二級榮譽徽章"},
-            {"points": 270,  "stage": "中級海洋階段", "avatar": "🐠", "reward": "二級獎狀 1 張"},
-            {"points": 210,  "stage": "中級海洋階段", "avatar": "🐠", "reward": "兌換券 1 張"},
-            {"points": 150,  "stage": "初級海洋階段", "avatar": "🐟", "reward": "一級榮譽徽章"},
-            {"points": 100,  "stage": "初級海洋階段", "avatar": "🐟", "reward": "一級獎狀 1 張"},
-            {"points": 50,   "stage": "初級海洋階段", "avatar": "🐟", "reward": "兌換券 1 張"}
+            {"points": 1350, "stage": "👑 菁英海洋階段", "avatar": "👑", "reward": "六級徽章"},
+            {"points": 1250, "stage": "👑 菁英海洋階段", "avatar": "👑", "reward": "校長室下午茶點心"},
+            {"points": 1150, "stage": "👑 菁英海洋階段", "avatar": "👑", "reward": "六級獎狀 1 張"},
+            {"points": 1050, "stage": "🦑 深海探險階段", "avatar": "🦑", "reward": "五級榮譽徽章"},
+            {"points": 960,  "stage": "🦑 深海探險階段", "avatar": "🦑", "reward": "五級獎狀 1 張"},
+            {"points": 870,  "stage": "🦑 深海探險階段", "avatar": "🦑", "reward": "兌換券"},
+            {"points": 780,  "stage": "🐋 大洋探險階段", "avatar": "🐋", "reward": "四級榮譽徽章"},
+            {"points": 700,  "stage": "🐋 大洋探險階段", "avatar": "🐋", "reward": "四級獎狀 1 張"},
+            {"points": 620,  "stage": "🐋 大洋探險階段", "avatar": "🐋", "reward": "兌換券"},
+            {"points": 540,  "stage": "🦈 高級海洋階段", "avatar": "🦈", "reward": "三級榮譽徽章"},
+            {"points": 470,  "stage": "🦈 高級海洋階段", "avatar": "🦈", "reward": "三級獎狀 1 張"},
+            {"points": 400,  "stage": "🦈 高級海洋階段", "avatar": "🦈", "reward": "兌換券"},
+            {"points": 330,  "stage": "🐠 中級海洋階段", "avatar": "🐠", "reward": "二級榮譽徽章"},
+            {"points": 270,  "stage": "🐠 中級海洋階段", "avatar": "🐠", "reward": "二級獎狀 1 張"},
+            {"points": 210,  "stage": "🐠 中級海洋階段", "avatar": "🐠", "reward": "兌換券 1 張"},
+            {"points": 150,  "stage": "🐟 初級海洋階段", "avatar": "🐟", "reward": "一級榮譽徽章"},
+            {"points": 100,  "stage": "🐟 初級海洋階段", "avatar": "🐟", "reward": "一級獎狀 1 張"},
+            {"points": 50,   "stage": "🐟 初級海洋階段", "avatar": "🐟", "reward": "兌換券 1 張"}
         ]
         db.collection("system_settings").document("ocean_stages").set({"stages": default_stages})
         return default_stages
@@ -153,6 +153,7 @@ def get_cached_student_logs(username):
         data.append({
             "日期": time_str,
             "分類": d.get("category"),
+            "點數": d.get("points", 1), # 顯示記錄的點數
             "事由/備註": d.get("reason"),
             "給點教師": d.get("teacher_id"),
             "raw_ts": ts if ts else datetime.min
@@ -167,7 +168,13 @@ def get_cached_teacher_logs(username):
     history = []
     for l in my_logs:
         ld = l.to_dict()
-        history.append({"日期": ld.get("date_str"), "學生學號": ld.get("student_id"), "分類": ld.get("category"), "事由": ld.get("reason")})
+        history.append({
+            "日期": ld.get("date_str"), 
+            "學生學號": ld.get("student_id"), 
+            "分類": ld.get("category"), 
+            "點數": ld.get("points", 1), # 顯示記錄的點數
+            "事由": ld.get("reason")
+        })
     return history
 
 # ==========================================
@@ -247,7 +254,8 @@ def get_categories():
         db.collection("system_settings").document("categories").set({"list": default_list})
         return default_list
 
-def add_merit_point(teacher_id, teacher_role, student_id, category, reason):
+def add_merit_point(teacher_id, teacher_role, student_id, category, reason, points=1):
+    """新增 points 參數，支援動態點數登錄"""
     today_str = datetime.now().strftime("%Y-%m-%d")
     student_doc = db.collection("users").document(student_id).get()
     if not student_doc.exists:
@@ -271,11 +279,12 @@ def add_merit_point(teacher_id, teacher_role, student_id, category, reason):
         "student_id": student_id,
         "category": category,
         "reason": reason,
+        "points": points, # 記錄本次加點點數
         "timestamp": firestore.SERVER_TIMESTAMP,
         "date_str": today_str
     })
     student_ref = db.collection("users").document(student_id)
-    fb_batch.update(student_ref, {"total_points": firestore.Increment(1)})
+    fb_batch.update(student_ref, {"total_points": firestore.Increment(points)}) # 增加指定點數
     
     fb_batch.commit()
     return True, "登錄成功"
@@ -592,11 +601,15 @@ if role in ["teacher", "coordinator", "admin"]:
         sel_category = st.selectbox("選擇優良表現分類", categories)
         reason = st.text_input("優良事由 / 備註说明", placeholder="例如：主動協助搬運體育器材")
         
+        # 🎯【新增需求 2】登錄點數數字設定欄位（移到上方做為通用欄位）
+        points_to_add = st.number_input("🔢 登錄點數設定", min_value=1, value=1, step=1)
+        
         if mode == "依學號單筆登錄":
             s_id = st.text_input("請輸入學生學號：")
             if st.button("送出登錄", type="primary"):
                 if s_id and sel_category:
-                    success, msg = add_merit_point(user["username"], role, s_id.strip(), sel_category, reason)
+                    # 傳入動態設定的點數
+                    success, msg = add_merit_point(user["username"], role, s_id.strip(), sel_category, reason, points=points_to_add)
                     if success: 
                         st.success(msg)
                         refresh_point_related_caches() 
@@ -617,14 +630,27 @@ if role in ["teacher", "coordinator", "admin"]:
                     st.info("該班級目前沒有啟用的學生。")
                 else:
                     st.write("---")
-                    select_all = st.checkbox("✅ **全班選取 / 全班給點**", value=False, key=f"all_cb_{target_class}")
+                    
+                    # 🎯【新增需求 1】藉由 st.session_state 狀態控管，完美連動全班勾選功能
+                    def toggle_all_students():
+                        all_checked = st.session_state[f"all_cb_{target_class}"]
+                        for s in student_list:
+                            st.session_state[f"chk_{target_class}_{s['id']}"] = all_checked
+
+                    select_all = st.checkbox(
+                        "✅ **全班選取 / 全班給點**", 
+                        value=False, 
+                        key=f"all_cb_{target_class}",
+                        on_change=toggle_all_students
+                    )
                     st.write("👉 **請勾選獲獎學生：**")
                     
                     selected_ids = []
                     grid_cols = st.columns(4) 
                     for idx, s in enumerate(student_list):
                         with grid_cols[idx % 4]:
-                            is_checked = st.checkbox(s["label"], value=select_all, key=f"chk_{target_class}_{s['id']}")
+                            # 移除原先不穩定的 value=select_all，改由 key 與 session_state 自主綁定控管
+                            is_checked = st.checkbox(s["label"], key=f"chk_{target_class}_{s['id']}")
                             if is_checked:
                                 selected_ids.append(s["id"])
                     
@@ -659,17 +685,19 @@ if role in ["teacher", "coordinator", "admin"]:
                                     "student_id": s_id,
                                     "category": sel_category,
                                     "reason": reason,
+                                    "points": points_to_add, # 寫入自訂點數
                                     "timestamp": firestore.SERVER_TIMESTAMP,
                                     "date_str": today_str
                                 })
                                 
                                 student_ref = db.collection("users").document(s_id)
-                                fb_batch.update(student_ref, {"total_points": firestore.Increment(1)})
+                                # 🎯【修改】動態累加指定的點數設定值 points_to_add
+                                fb_batch.update(student_ref, {"total_points": firestore.Increment(points_to_add)})
                                 success_count += 1
                             
                             if success_count > 0:
                                 fb_batch.commit()
-                                st.success(f"🎉 處理完成！成功登錄 {success_count} 位學生的點數。")
+                                st.success(f"🎉 處理完成！成功登錄 {success_count} 位學生的點數（每人各得 {points_to_add} 點）。")
                                 refresh_point_related_caches() 
                             if fail_messages:
                                 with st.expander("檢視未成功登錄名單"):
@@ -775,7 +803,7 @@ if role in ["admin", "coordinator"]:
                             mail_title = f"全校榮譽階段達標自動核算總表_{datetime.now().strftime('%Y-%m-%d')}"
                             mail_success, mail_msg = send_report_email_with_csv(admin_email, df_achieved, mail_title)
                             if mail_success:
-                                st.success(f"📧 郵件發送成功！{mail_msg} (已寄至: {admin_email})")
+                                f"📧 郵件發送成功！{mail_msg} (已寄至: {admin_email})"
                             else:
                                 st.error(mail_msg)
                     else:
@@ -966,7 +994,7 @@ if role in ["admin", "coordinator"]:
                     refresh_all_system_caches()
                     st.rerun()
 
-    with st.expander("📊 全校師生名單 Excel 批次匯入"):
+    with st.expander("📊 全校師名單 Excel 批次匯入"):
         st.subheader("上傳新學期 Excel 名單")
         import_type = st.radio("請選擇欲匯入的名單類型：", ["學生名單 (含新班級座號)", "教師名單 (含導師配置)"], horizontal=True)
         
