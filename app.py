@@ -585,7 +585,7 @@ if role in ["teacher", "coordinator", "admin"]:
         else:
             classes = get_cached_active_classes()
             if not classes:
-                st.warning("目前系統內無任何啟用的學生資料。")
+                st.warning("目 前系統內無任何啟用的學生資料。")
             else:
                 target_class = st.selectbox("選擇目標班級", classes)
                 student_list = get_cached_students_by_class(target_class)
@@ -710,7 +710,7 @@ if role in ["admin", "coordinator"]:
     # ------------------------------------------
     # 🎯【通用功能：開放給 管理者(admin) 與 業務承辦人(coordinator)】
     # ------------------------------------------
-    with st.expander("📅 全校榮譽達標名單核算 (自動導出與 Mail 通知)", expanded=True):
+    with st.expander("📅 全校榮譽達標名單核算 (自動導出與 Mail 通知)"):
         st.subheader("🔍 依據現行設定門檻自動比對全校學生")
         st.write("系統將自動抓取目前執行中的所有海洋階段門檻值，並與全校學生當前總積點進行比對，自動匯出已跨越榮譽門檻之名單。")
         
@@ -766,20 +766,99 @@ if role in ["admin", "coordinator"]:
                         st.warning("⚠️ 提示：由於您目前的帳號資料內未綁定或填寫正確的 Email，系統無法執行自動寄信。")
 
     # ------------------------------------------
+    # 核心新增功能：【📊 全校教師給點成效統計與圖表】(開放給管理者與承辦人)
+    # ------------------------------------------
+    with st.expander("📊 全校教師給點成效統計與圖表", expanded=True):
+        st.subheader("📈 追蹤榮譽計畫執行成效")
+        st.write("此處分析全校所有具給點權限的人員（教師與管理端）發放點數之統計數據，並繪製成直觀的成效分析圖表。")
+        
+        if st.button("📊 生成全校教師績效圖表與數據"):
+            with st.spinner("正在即時分析點數日誌（Point Logs），請稍候..."):
+                # 1. 撈取所有教職員帳號建立基礎資料庫
+                all_users_docs = db.collection("users").get()
+                teachers_db = {}
+                for u in all_users_docs:
+                    ud = u.to_dict()
+                    if ud.get("role") in ["teacher", "coordinator", "admin"]:
+                        teachers_db[ud.get("username")] = {
+                            "教師姓名": ud.get("name", "未命名"),
+                            "身分別": role_map.get(ud.get("role"), "未知"),
+                            "配屬導師班級": ud.get("homeroom_class", "無") or "無"
+                        }
+                
+                # 2. 撈取所有點數變更紀錄進行加總分析
+                all_logs_docs = db.collection("point_logs").get()
+                points_counter = {}   # 儲存總點數
+                tx_counter = {}       # 儲存給點次數
+                
+                for l in all_logs_docs:
+                    ld = l.to_dict()
+                    t_id = ld.get("teacher_id")
+                    pts = int(ld.get("points", 1))
+                    if t_id:
+                        points_counter[t_id] = points_counter.get(t_id, 0) + pts
+                        tx_counter[t_id] = tx_counter.get(t_id, 0) + 1
+                
+                # 3. 整合為 DataFrame
+                stats_rows = []
+                for t_id, info in teachers_db.items():
+                    total_pts_sent = points_counter.get(t_id, 0)
+                    total_tx_count = tx_counter.get(t_id, 0)
+                    
+                    stats_rows.append({
+                        "教師代碼": t_id,
+                        "教師姓名": info["教師姓名"],
+                        "權限身分": info["身分別"],
+                        "導師班級": info["配屬導師班級"],
+                        "累計發放點數": total_pts_sent,
+                        "累計給點次數": total_tx_count
+                    })
+                
+                df_stats = pd.DataFrame(stats_rows)
+                # 篩選掉從未發過點數的老師，僅呈現有執行成效的資料供圖表更清晰
+                df_chart_active = df_stats[df_stats["累計發放點數"] > 0].sort_values(by="累計發放點數", ascending=False)
+                
+                if df_chart_active.empty:
+                    st.info("💡 統計完成：目前全校教師尚未有任何給點日誌紀錄。")
+                else:
+                    st.success(f"🎉 數據統計完成！目前共有 {len(df_chart_active)} 位教職員積極參與給點。")
+                    
+                    # ---- 繪製成效圖表 ----
+                    st.markdown("#### 🏆 教師給點排行累計圖")
+                    # 將姓名和代碼結合以防同名同姓在圖表中重疊
+                    df_chart_active["圖表呈現名稱"] = df_chart_active["教師姓名"] + " (" + df_chart_active["教師代碼"] + ")"
+                    
+                    # 建立適用於 st.bar_chart 的格式
+                    chart_data = df_chart_active.set_index("圖表呈現名稱")[["累計發放點數"]]
+                    st.bar_chart(chart_data)
+                    
+                    # ---- 資料數據總表與下載 ----
+                    st.markdown("#### 📋 完整發放數據報表")
+                    df_all_display = df_stats.sort_values(by="累計發放點數", ascending=False)
+                    st.dataframe(df_all_display, use_container_width=True, hide_index=True)
+                    
+                    csv_stats_data = df_all_display.to_csv(index=False).encode('utf-8-sig')
+                    st.download_button(
+                        label="📥 導出全校教師給點績效總表 (CSV 檔案)",
+                        data=csv_stats_data,
+                        file_name=f"全校教師榮譽點數發放統計_{datetime.now().strftime('%Y%m%d')}.csv",
+                        mime="text/csv"
+                    )
+
+    # ------------------------------------------
     # 🔒【限制區：唯有 最高管理者(admin) 才能檢視與操作以下進階系統設定】
     # ------------------------------------------
     if role == "admin":
         with st.expander("👥 使用者帳號管理（編輯資料 / 停用啟用）"):
             st.subheader("🔍 查詢與編輯師生帳號")
             
-            # 【核心修正】：增加班級與身分別搜尋
             search_mode = st.radio(
                 "請選擇搜尋或篩選模式：", 
                 ["依帳號(ID)搜尋", "依姓名關鍵字搜尋", "依班級篩選", "依身分別篩選"], 
                 horizontal=True
             )
             
-            matched_users = []  # 用來存放查詢到的所有符合者份文件
+            matched_users = []  
             
             if search_mode == "依帳號(ID)搜尋":
                 search_id = st.text_input("請輸入精確的使用者帳號 (學號或教師代碼)：").strip()
@@ -793,7 +872,6 @@ if role in ["admin", "coordinator"]:
             elif search_mode == "依姓名關鍵字搜尋":
                 search_name = st.text_input("請輸入姓名關鍵字（支援部分文字模糊查詢）：").strip()
                 if search_name:
-                    # 由於 Firestore 無內建全模糊查詢，這裡拉出少量或用全集在前端篩選，以符合精確管理需求
                     all_u = db.collection("users").limit(1500).get()
                     for u in all_u:
                         if search_name in u.to_dict().get("name", ""):
@@ -802,7 +880,6 @@ if role in ["admin", "coordinator"]:
                         st.error(f"❌ 找不到姓名包含 【{search_name}】 的使用者。")
                         
             elif search_mode == "依班級篩選":
-                # 自動撈取 Firebase 中不重複的所有班級列表
                 all_u = db.collection("users").get()
                 class_set = set()
                 for u in all_u:
@@ -828,11 +905,9 @@ if role in ["admin", "coordinator"]:
                     results = db.collection("users").where("role", "==", selected_role_key).get()
                     matched_users = list(results)
             
-            # 當有查找到使用者時，供管理者點選編輯
             if matched_users:
                 st.write(f"🔍 系統共找到 **{len(matched_users)}** 筆符合的資料：")
                 
-                # 建立下拉選單讓管理者選擇具體想修改哪一位
                 user_options = []
                 user_map = {}
                 for u in matched_users:
@@ -849,7 +924,6 @@ if role in ["admin", "coordinator"]:
                     target_doc = user_map[selected_user_text]
                     td = target_doc.to_dict()
                     
-                    # 載入編輯表單
                     st.markdown(f"##### ✏️ 目前正在編輯：**{td.get('name')}** ({td.get('username')}) 的個人檔案")
                     with st.form(f"edit_form_{td.get('username')}", clear_on_submit=False):
                         col_u1, col_u2 = st.columns(2)
