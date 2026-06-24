@@ -535,15 +535,16 @@ if role == "student":
             next_stage_text = f"💡 距離下一里程碑還差 **{s['points'] - pts}** 點 (下一目標：{s['stage']})"
             break
 
+    # 💡 已修正：將代表圖案/Emoji 尺寸調降至原本的 15% 區間 (調整為精緻的 24px 排版)，並優化卡片空間提升美觀度
     st.markdown(
         f"""
-        <div style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); padding: 25px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); margin-bottom: 25px; display: flex; align-items: center;">
-            <div style="font-size: 72px; line-height: 1; margin-right: 25px; display: flex; align-items: center; justify-content: center; min-width: 80px;">
+        <div style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); margin-bottom: 20px; display: flex; align-items: center;">
+            <div style="font-size: 24px; line-height: 1; margin-right: 15px; display: flex; align-items: center; justify-content: center; min-width: 32px;">
                 {avatar}
             </div>
             <div>
-                <h2 style="margin: 0; color: #0369a1; font-size: 1.8rem; font-weight: 700;">目前海洋使命階級：【{stage_name}】</h2>
-                <p style="margin: 8px 0 0 0; color: #0c4a6e; font-size: 1.2rem; font-weight: 600;">✨ 目前累計總積點：<span style="font-size: 1.5rem; color: #0284c7;">{pts}</span> 點</p>
+                <h2 style="margin: 0; color: #0369a1; font-size: 1.4rem; font-weight: 700;">目前海洋使命階級：【{stage_name}】</h2>
+                <p style="margin: 4px 0 0 0; color: #0c4a6e; font-size: 1.0rem; font-weight: 600;">✨ 目前累計總積點：<span style="font-size: 1.2rem; color: #0284c7;">{pts}</span> 點</p>
             </div>
         </div>
         """, 
@@ -771,7 +772,7 @@ if role in ["admin", "coordinator"]:
     # ------------------------------------------
     # 核心新增功能：【📊 全校教師給點成效統計與圖表】(開放給管理者與承辦人)
     # ------------------------------------------
-    with st.expander("📊 全校教師給點成效統計與圖表", expanded=True):
+    with st.expander("📊 全校教師給點成效統計與圖表"):
         st.subheader("📈 追蹤榮譽計畫執行成效")
         st.write("此處分析全校所有具給點權限的人員（教師與管理端）發放點數之統計數據，並繪製成直觀的成效分析圖表。")
         
@@ -1040,7 +1041,6 @@ if role in ["admin", "coordinator"]:
                     edit_pts = st.number_input("達標總點數門檻值 (必填識別代碼)", min_value=0, value=default_pts, step=10)
                     edit_stage_name = st.text_input("海洋階段名稱", value=default_name)
                 with col_f2:
-                    # 💡 更換為高直覺的圖片上傳元件
                     uploaded_badge = st.file_uploader("🏆 上傳新徽章圖片 (將自動裁切縮小並自適應排版)", type=["png", "jpg", "jpeg", "webp"])
                     is_html = "<img" in default_avatar
                     edit_avatar_emoji = st.text_input("或改用純文字/Emoji (若上方有上傳新圖片，系統將優先使用圖片)", value="" if is_html else default_avatar)
@@ -1057,7 +1057,7 @@ if role in ["admin", "coordinator"]:
                     f"""
                     <div style="background-color: #f8fafc; padding: 12px; border-radius: 8px; border: 1px dashed #cbd5e1; margin-top: 10px;">
                         <strong>✨ 目前 / 預覽圖標效果：</strong>
-                        <div style="font-size: 32px; margin-top: 5px; line-height: 1; display: flex; align-items: center;">{preview_avatar}</div>
+                        <div style="font-size: 24px; margin-top: 5px; line-height: 1; display: flex; align-items: center;">{preview_avatar}</div>
                     </div>
                     """, 
                     unsafe_allow_html=True
@@ -1076,23 +1076,20 @@ if role in ["admin", "coordinator"]:
                     else:
                         final_avatar = default_avatar  # 預設維持原本狀態
                         
-                        # 處理圖片上傳
+                        # 💡 已修正：將上傳裁切的最大尺寸壓縮為 40x40 像素（大幅降低儲存容量，提升網頁載入速度）
                         if uploaded_badge is not None:
                             try:
                                 img = Image.open(uploaded_badge)
-                                # 限制最大寬高，避免手機上傳超大原始檔導致塞爆資料庫與網頁讀取變慢
-                                img.thumbnail((150, 150))
+                                img.thumbnail((40, 40))
                                 buf = io.BytesIO()
-                                # 強制存成 PNG 格式保留透明背景底色
                                 img.save(buf, format="PNG")
                                 b64_str = base64.b64encode(buf.getvalue()).decode()
-                                # 加上自動適應與對齊樣式，72px 能與原本的 Emoji 大小完美替換
-                                final_avatar = f'<img src="data:image/png;base64,{b64_str}" style="width:72px; height:72px; object-fit:contain; vertical-align:middle;" />'
+                                # 💡 已修正：將 HTML 顯示大小設為優化的 24px
+                                final_avatar = f'<img src="data:image/png;base64,{b64_str}" style="width:24px; height:24px; object-fit:contain; vertical-align:middle;" />'
                             except Exception as e:
                                 st.error(f"❌ 圖片處理失敗，請重新確認檔案是否毀損。錯誤原因: {e}")
                                 final_avatar = None
                         elif edit_avatar_emoji.strip():
-                            # 如果沒有上傳新圖片，而欄位內有手動輸入的文字或 Emoji
                             final_avatar = edit_avatar_emoji.strip()
                         
                         if not final_avatar:
