@@ -535,16 +535,16 @@ if role == "student":
             next_stage_text = f"💡 距離下一里程碑還差 **{s['points'] - pts}** 點 (下一目標：{s['stage']})"
             break
 
-    # 💡 已修正：將代表圖案/Emoji 尺寸調降至原本的 15% 區間 (調整為精緻的 24px 排版)，並優化卡片空間提升美觀度
+    # 💡 調整重點：將代表圖案/Emoji 尺寸從 24px 放大了四倍到 96px，同時加大留白來搭配大圖標
     st.markdown(
         f"""
-        <div style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); margin-bottom: 20px; display: flex; align-items: center;">
-            <div style="font-size: 24px; line-height: 1; margin-right: 15px; display: flex; align-items: center; justify-content: center; min-width: 32px;">
+        <div style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); padding: 25px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); margin-bottom: 25px; display: flex; align-items: center;">
+            <div style="font-size: 96px; line-height: 1; margin-right: 25px; display: flex; align-items: center; justify-content: center; min-width: 100px;">
                 {avatar}
             </div>
             <div>
-                <h2 style="margin: 0; color: #0369a1; font-size: 1.4rem; font-weight: 700;">目前海洋使命階級：【{stage_name}】</h2>
-                <p style="margin: 4px 0 0 0; color: #0c4a6e; font-size: 1.0rem; font-weight: 600;">✨ 目前累計總積點：<span style="font-size: 1.2rem; color: #0284c7;">{pts}</span> 點</p>
+                <h2 style="margin: 0; color: #0369a1; font-size: 1.8rem; font-weight: 700;">目前海洋使命階級：【{stage_name}】</h2>
+                <p style="margin: 8px 0 0 0; color: #0c4a6e; font-size: 1.2rem; font-weight: 600;">✨ 目前累計總積點：<span style="font-size: 1.5rem; color: #0284c7;">{pts}</span> 點</p>
             </div>
         </div>
         """, 
@@ -778,7 +778,6 @@ if role in ["admin", "coordinator"]:
         
         if st.button("📊 生成全校教師績效圖表與數據"):
             with st.spinner("正在即時分析點數日誌（Point Logs），請稍候..."):
-                # 1. 撈取所有教職員帳號建立基礎資料庫
                 all_users_docs = db.collection("users").get()
                 teachers_db = {}
                 for u in all_users_docs:
@@ -790,10 +789,9 @@ if role in ["admin", "coordinator"]:
                             "配屬導師班級": ud.get("homeroom_class", "無") or "無"
                         }
                 
-                # 2. 撈取所有點數變更紀錄進行加總分析
                 all_logs_docs = db.collection("point_logs").get()
-                points_counter = {}   # 儲存總點數
-                tx_counter = {}       # 儲存給點次數
+                points_counter = {}   
+                tx_counter = {}       
                 
                 for l in all_logs_docs:
                     ld = l.to_dict()
@@ -803,7 +801,6 @@ if role in ["admin", "coordinator"]:
                         points_counter[t_id] = points_counter.get(t_id, 0) + pts
                         tx_counter[t_id] = tx_counter.get(t_id, 0) + 1
                 
-                # 3. 整合為 DataFrame
                 stats_rows = []
                 for t_id, info in teachers_db.items():
                     total_pts_sent = points_counter.get(t_id, 0)
@@ -819,7 +816,6 @@ if role in ["admin", "coordinator"]:
                     })
                 
                 df_stats = pd.DataFrame(stats_rows)
-                # 篩選掉從未發過點數的老師，僅呈現有執行成效的資料供圖表更清晰
                 df_chart_active = df_stats[df_stats["累計發放點數"] > 0].sort_values(by="累計發放點數", ascending=False)
                 
                 if df_chart_active.empty:
@@ -827,16 +823,12 @@ if role in ["admin", "coordinator"]:
                 else:
                     st.success(f"🎉 數據統計完成！目前共有 {len(df_chart_active)} 位教職員積極參與給點。")
                     
-                    # ---- 繪製成效圖表 ----
                     st.markdown("#### 🏆 教師給點排行累計圖")
-                    # 將姓名和代碼結合以防同名同姓在圖表中重疊
                     df_chart_active["圖表呈現名稱"] = df_chart_active["教師姓名"] + " (" + df_chart_active["教師代碼"] + ")"
                     
-                    # 建立適用於 st.bar_chart 的格式
                     chart_data = df_chart_active.set_index("圖表呈現名稱")[["累計發放點數"]]
                     st.bar_chart(chart_data)
                     
-                    # ---- 資料數據總表與下載 ----
                     st.markdown("#### 📋 完整發放數據報表")
                     df_all_display = df_stats.sort_values(by="累計發放點數", ascending=False)
                     st.dataframe(df_all_display, use_container_width=True, hide_index=True)
@@ -1057,7 +1049,7 @@ if role in ["admin", "coordinator"]:
                     f"""
                     <div style="background-color: #f8fafc; padding: 12px; border-radius: 8px; border: 1px dashed #cbd5e1; margin-top: 10px;">
                         <strong>✨ 目前 / 預覽圖標效果：</strong>
-                        <div style="font-size: 24px; margin-top: 5px; line-height: 1; display: flex; align-items: center;">{preview_avatar}</div>
+                        <div style="font-size: 96px; margin-top: 10px; line-height: 1; display: flex; align-items: center;">{preview_avatar}</div>
                     </div>
                     """, 
                     unsafe_allow_html=True
@@ -1074,18 +1066,18 @@ if role in ["admin", "coordinator"]:
                     if not edit_stage_name:
                         st.error("❌ 階段名稱欄位不能留空！")
                     else:
-                        final_avatar = default_avatar  # 預設維持原本狀態
+                        final_avatar = default_avatar  
                         
-                        # 💡 已修正：將上傳裁切的最大尺寸壓縮為 40x40 像素（大幅降低儲存容量，提升網頁載入速度）
+                        # 💡 已修正：將圖片處理尺寸提升為 160x160，並將 HTML 顯示尺寸放大至 96px
                         if uploaded_badge is not None:
                             try:
                                 img = Image.open(uploaded_badge)
-                                img.thumbnail((40, 40))
+                                img.thumbnail((160, 160))
                                 buf = io.BytesIO()
                                 img.save(buf, format="PNG")
                                 b64_str = base64.b64encode(buf.getvalue()).decode()
-                                # 💡 已修正：將 HTML 顯示大小設為優化的 24px
-                                final_avatar = f'<img src="data:image/png;base64,{b64_str}" style="width:72px; height:72px; object-fit:contain; vertical-align:middle;" />'
+                                # 💡 已修正：HTML 中的 width 與 height 放寬為 96px
+                                final_avatar = f'<img src="data:image/png;base64,{b64_str}" style="width:96px; height:96px; object-fit:contain; vertical-align:middle;" />'
                             except Exception as e:
                                 st.error(f"❌ 圖片處理失敗，請重新確認檔案是否毀損。錯誤原因: {e}")
                                 final_avatar = None
