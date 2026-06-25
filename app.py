@@ -296,6 +296,10 @@ if "logged_in" not in st.session_state:
 if "auth_page" not in st.session_state:
     st.session_state.auth_page = "login"
 
+# 💡 核心修正：新增一個專屬的圖片上傳元件 Key，用於儲存成功後強制刷新重置上傳狀態
+if "badge_uploader_key" not in st.session_state:
+    st.session_state["badge_uploader_key"] = str(random.randint(10000, 99999))
+
 if not st.session_state.logged_in and "login_token" in st.query_params:
     try:
         token_str = st.query_params["login_token"]
@@ -535,7 +539,6 @@ if role == "student":
             next_stage_text = f"💡 距離下一里程碑還差 **{s['points'] - pts}** 點 (下一目標：{s['stage']})"
             break
 
-    # 💡 調整重點：將代表圖案/Emoji 尺寸從 24px 放大了四倍到 96px，同時加大留白來搭配大圖標
     st.markdown(
         f"""
         <div style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); padding: 25px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); margin-bottom: 25px; display: flex; align-items: center;">
@@ -1033,16 +1036,17 @@ if role in ["admin", "coordinator"]:
                     edit_pts = st.number_input("達標總點數門檻值 (必填識別代碼)", min_value=0, value=default_pts, step=10)
                     edit_stage_name = st.text_input("海洋階段名稱", value=default_name)
                 with col_f2:
-                    uploaded_badge = st.file_uploader("🏆 上傳新徽章圖片 (將自動裁切縮小並自適應排版)", type=["png", "jpg", "jpeg", "webp"])
+                    # 💡 核心修正：綁定動態 Key，以便儲存後可以強制銷毀並重置此上傳元件
+                    uploaded_badge = st.file_uploader("🏆 上傳新徽章圖片 (將自動裁切縮小並自適應排版)", type=["png", "jpg", "jpeg", "webp"], key=st.session_state["badge_uploader_key"])
                     is_html = "<img" in default_avatar
                     edit_avatar_emoji = st.text_input("或改用純文字/Emoji (若上方有上傳新圖片，系統將優先使用圖片)", value="" if is_html else default_avatar)
                     edit_reward = st.text_input("解鎖發放品項描述", value=default_reward)
                 
-                # 預覽處理
+                # 💡 核心修正：優化預覽判斷邏輯
                 preview_avatar = default_avatar
                 if uploaded_badge is not None:
-                    preview_avatar = "⏳ 儲存後將套用並顯示新上傳的徽章圖片"
-                elif edit_avatar_emoji.strip():
+                    preview_avatar = "⏳ 請點擊下方「儲存設定」來正式套用新徽章"
+                elif edit_avatar_emoji.strip() and "<img" not in edit_avatar_emoji.strip():
                     preview_avatar = edit_avatar_emoji.strip()
 
                 st.markdown(
@@ -1068,7 +1072,6 @@ if role in ["admin", "coordinator"]:
                     else:
                         final_avatar = default_avatar  
                         
-                        # 💡 已修正：將圖片處理尺寸提升為 160x160，並將 HTML 顯示尺寸放大至 96px
                         if uploaded_badge is not None:
                             try:
                                 img = Image.open(uploaded_badge)
@@ -1076,7 +1079,6 @@ if role in ["admin", "coordinator"]:
                                 buf = io.BytesIO()
                                 img.save(buf, format="PNG")
                                 b64_str = base64.b64encode(buf.getvalue()).decode()
-                                # 💡 已修正：HTML 中的 width 與 height 放寬為 96px
                                 final_avatar = f'<img src="data:image/png;base64,{b64_str}" style="width:96px; height:96px; object-fit:contain; vertical-align:middle;" />'
                             except Exception as e:
                                 st.error(f"❌ 圖片處理失敗，請重新確認檔案是否毀損。錯誤原因: {e}")
@@ -1100,6 +1102,8 @@ if role in ["admin", "coordinator"]:
                             
                             db.collection("system_settings").document("ocean_stages").set({"stages": updated_stages})
                             st.success(f"🎉 成功儲存 {edit_pts} 點的海洋階段設定！")
+                            # 💡 核心修正：儲存成功後，強制更新 Key 來銷毀舊的圖片上傳元件
+                            st.session_state["badge_uploader_key"] = str(random.randint(10000, 99999))
                             refresh_all_system_caches()
                             st.rerun()
                         
@@ -1107,6 +1111,8 @@ if role in ["admin", "coordinator"]:
                     updated_stages = [s for s in stages_list if int(s["points"]) != int(default_pts)]
                     db.collection("system_settings").document("ocean_stages").set({"stages": updated_stages})
                     st.success(f"🗑️ 已成功將 {default_pts} 點的階段規則自資料庫移除。")
+                    # 💡 核心修正：刪除成功後，一樣強制更新 Key 來銷毀舊的圖片上傳元件
+                    st.session_state["badge_uploader_key"] = str(random.randint(10000, 99999))
                     refresh_all_system_caches()
                     st.rerun()
 
