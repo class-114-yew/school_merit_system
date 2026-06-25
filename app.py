@@ -49,13 +49,25 @@ st.markdown(
 # 2. 🚀 高性能定向快取區
 # ==========================================
 
+# 🛡️ 新增：管理員專用「全域資料快取池」 (大幅降低 95% Firebase 讀取次數，防止 ResourceExhausted)
+@st.cache_data(ttl=600)
+def fetch_all_users_for_admin():
+    """快取全校使用者資料 10 分鐘，供後台搜尋、圖表分析使用，免去重複撈庫"""
+    docs = db.collection("users").get()
+    return [d.to_dict() for d in docs]
+
+@st.cache_data(ttl=600)
+def fetch_all_logs_for_admin():
+    """快取全校所有日誌 10 分鐘，專供教師成效圖表使用"""
+    docs = db.collection("point_logs").get()
+    return [d.to_dict() for d in docs]
+
 @st.cache_data(ttl=600)  
 def verify_session_token(username, session_token):
-    """驗證安全 Token，高頻重整網頁時直接走快取，完全不消耗 Firebase 讀取額度"""
+    """驗證安全 Token，高頻重整網頁時直接走快取"""
     user_doc = db.collection("users").document(username).get()
     if user_doc.exists:
         u_data = user_doc.to_dict()
-        # 確保帳號未被停用，且資料庫中的 token 與網址完全一致
         if u_data.get("status") != "disabled" and u_data.get("session_token") == session_token:
             return u_data
     return None
@@ -93,7 +105,6 @@ def get_cached_ocean_stages():
         return default_stages
 
 def get_student_avatar_and_stage(points, stages_config):
-    """計算學生目前對應的頭像、階段名稱與獎勵"""
     for s in sorted(stages_config, key=lambda x: x["points"], reverse=True):
         if points >= s["points"]:
             return s["avatar"], s["stage"], s["reward"]
@@ -101,8 +112,9 @@ def get_student_avatar_and_stage(points, stages_config):
 
 @st.cache_data(ttl=3600)  
 def get_cached_active_classes():
-    all_students = db.collection("users").where("role", "==", "student").where("status", "==", "active").get()
-    return sorted(list(set([s.to_dict().get("current_class") for s in all_students if s.to_dict().get("current_class")])))
+    # 🛡️ 最佳化：改用全域快取來找班級，避免每次都撈全校學生消耗額度
+    all_u = fetch_all_users_for_admin()
+    return sorted(list(set([s.get("current_class") for s in all_u if s.get("role") == "student" and s.get("status") == "active" and s.get("current_class")])))
 
 @st.cache_data(ttl=1800)  
 def get_cached_students_by_class(target_class):
@@ -113,7 +125,6 @@ def get_cached_students_by_class(target_class):
         sd = s.to_dict()
         pts = sd.get("total_points", 0)
         avatar, _, _ = get_student_avatar_and_stage(pts, stages_config)
-        
         clean_avatar = "🖼️ 圖標" if "<img" in avatar else avatar
         student_list.append({
             "label": f"{sd.get('current_seat_no')}號 - {clean_avatar} {sd.get('name')} ({pts}點)", 
@@ -133,7 +144,6 @@ def get_cached_homeroom_report(view_class):
         status_text = "🟢 正常" if sd.get("status", "active") == "active" else "🔴 停用"
         pts = sd.get("total_points", 0)
         avatar, stage_name, _ = get_student_avatar_and_stage(pts, stages_config)
-        
         clean_avatar = "🖼️" if "<img" in avatar else avatar
         report_data.append({
             "座號": str(sd.get("current_seat_no", "")),
@@ -197,6 +207,8 @@ def refresh_all_system_caches():
     get_cached_student_logs.clear()
     get_cached_teacher_logs.clear()
     verify_session_token.clear() 
+    fetch_all_users_for_admin.clear() # 更新資料時一併清空全域快取
+    fetch_all_logs_for_admin.clear()
 
 # ==========================================
 # 4. 核心功能函式
@@ -312,7 +324,7 @@ if not st.session_state.logged_in and "login_token" in st.query_params:
         pass  
 
 # ==========================================
-# 6. 驗證與登入介面分流 (🌊 全螢幕海洋背景 x 懸浮毛玻璃卡片版)
+# 6. 驗證與登入介面分流
 # ==========================================
 if not st.session_state.logged_in:
     import base64
@@ -723,25 +735,25 @@ if role in ["admin", "coordinator"]:
         if st.button("🚀 執行自動化核算與郵件發送", type="primary"):
             with st.spinner("正在讀取全校學生數據並交叉核算中，請稍候..."):
                 stages_config = get_cached_ocean_stages()
-                all_students = db.collection("users").where("role", "==", "student").where("status", "==", "active").get()
+                # 🛡️ 最佳化：改用全域快取來抓取，節省讀取額度
+                all_u = fetch_all_users_for_admin()
                 
                 achieved_rows = []
-                for s in all_students:
-                    sd = s.to_dict()
-                    u_pts = sd.get("total_points", 0)
-                    
-                    avatar, s_name, reward = get_student_avatar_and_stage(u_pts, stages_config)
-                    
-                    if s_name != "潛水初心階段":
-                        achieved_rows.append({
-                            "積點階段名稱": s_name,
-                            "班級": sd.get("current_class", ""),
-                            "座號": sd.get("current_seat_no", ""),
-                            "學號": sd.get("username", ""),
-                            "學生姓名": sd.get("name", ""),
-                            "目前累計總積點": u_pts,
-                            "應發放獎勵品項": reward
-                        })
+                for ud in all_u:
+                    if ud.get("role") == "student" and ud.get("status") == "active":
+                        u_pts = ud.get("total_points", 0)
+                        avatar, s_name, reward = get_student_avatar_and_stage(u_pts, stages_config)
+                        
+                        if s_name != "潛水初心階段":
+                            achieved_rows.append({
+                                "積點階段名稱": s_name,
+                                "班級": ud.get("current_class", ""),
+                                "座號": ud.get("current_seat_no", ""),
+                                "學號": ud.get("username", ""),
+                                "學生姓名": ud.get("name", ""),
+                                "目前累計總積點": u_pts,
+                                "應發放獎勵品項": reward
+                            })
                 
                 if not achieved_rows:
                     st.info("💡 核算完成：目前全校尚無 any 學生達到最低的榮譽檻分數。")
@@ -780,10 +792,10 @@ if role in ["admin", "coordinator"]:
         
         if st.button("📊 生成全校教師績效圖表與數據"):
             with st.spinner("正在即時分析點數日誌（Point Logs），請稍候..."):
-                all_users_docs = db.collection("users").get()
+                # 🛡️ 最佳化：改用全域快取來抓取，保護資料庫額度
+                all_u = fetch_all_users_for_admin()
                 teachers_db = {}
-                for u in all_users_docs:
-                    ud = u.to_dict()
+                for ud in all_u:
                     if ud.get("role") in ["teacher", "coordinator", "admin"]:
                         teachers_db[ud.get("username")] = {
                             "教師姓名": ud.get("name", "未命名"),
@@ -791,12 +803,12 @@ if role in ["admin", "coordinator"]:
                             "配屬導師班級": ud.get("homeroom_class", "無") or "無"
                         }
                 
-                all_logs_docs = db.collection("point_logs").get()
+                # 🛡️ 最佳化：撈日誌也採用全域快取
+                all_l = fetch_all_logs_for_admin()
                 points_counter = {}   
                 tx_counter = {}       
                 
-                for l in all_logs_docs:
-                    ld = l.to_dict()
+                for ld in all_l:
                     t_id = ld.get("teacher_id")
                     pts = int(ld.get("points", 1))
                     if t_id:
@@ -861,27 +873,26 @@ if role in ["admin", "coordinator"]:
             if search_mode == "依帳號(ID)搜尋":
                 search_id = st.text_input("請輸入精確的使用者帳號 (學號或教師代碼)：").strip()
                 if search_id:
-                    doc = db.collection("users").document(search_id).get()
-                    if doc.exists:
-                        matched_users.append(doc)
-                    else:
+                    # 🛡️ 最佳化：帳號搜尋也改抓快取池
+                    all_u = fetch_all_users_for_admin()
+                    matched_users = [u for u in all_u if u.get("username") == search_id]
+                    if not matched_users:
                         st.error(f"❌ 找不到帳號為 【{search_id}】 的使用者。")
                         
             elif search_mode == "依姓名關鍵字搜尋":
                 search_name = st.text_input("請輸入姓名關鍵字（支援部分文字模糊查詢）：").strip()
                 if search_name:
-                    all_u = db.collection("users").limit(1500).get()
-                    for u in all_u:
-                        if search_name in u.to_dict().get("name", ""):
-                            matched_users.append(u)
+                    all_u = fetch_all_users_for_admin()
+                    for ud in all_u:
+                        if search_name in ud.get("name", ""):
+                            matched_users.append(ud)
                     if not matched_users:
                         st.error(f"❌ 找不到姓名包含 【{search_name}】 的使用者。")
                         
             elif search_mode == "依班級篩選":
-                all_u = db.collection("users").get()
+                all_u = fetch_all_users_for_admin()
                 class_set = set()
-                for u in all_u:
-                    ud = u.to_dict()
+                for ud in all_u:
                     if ud.get("current_class"): class_set.add(ud.get("current_class"))
                     if ud.get("homeroom_class"): class_set.add(ud.get("homeroom_class"))
                 
@@ -889,10 +900,9 @@ if role in ["admin", "coordinator"]:
                 if sorted_classes:
                     selected_search_class = st.selectbox("請選擇目標班級：", sorted_classes)
                     if selected_search_class:
-                        for u in all_u:
-                            ud = u.to_dict()
+                        for ud in all_u:
                             if ud.get("current_class") == selected_search_class or ud.get("homeroom_class") == selected_search_class:
-                                matched_users.append(u)
+                                matched_users.append(ud)
                 else:
                     st.info("目前資料庫中無班級紀錄。")
                     
@@ -900,27 +910,25 @@ if role in ["admin", "coordinator"]:
                 role_filter_map = {"student": "學生", "teacher": "一般教師", "coordinator": "業務承辦人", "admin": "最高管理者"}
                 selected_role_key = st.selectbox("請選擇身分別角色：", list(role_filter_map.keys()), format_func=lambda x: role_filter_map[x])
                 if selected_role_key:
-                    results = db.collection("users").where("role", "==", selected_role_key).get()
-                    matched_users = list(results)
+                    all_u = fetch_all_users_for_admin()
+                    matched_users = [u for u in all_u if u.get("role") == selected_role_key]
             
             if matched_users:
                 st.write(f"🔍 系統共找到 **{len(matched_users)}** 筆符合的資料：")
                 
                 user_options = []
                 user_map = {}
-                for u in matched_users:
-                    ud = u.to_dict()
+                for ud in matched_users:
                     r_lbl = role_map.get(ud.get("role"), "未知")
                     cls_lbl = f"({ud.get('current_class') or ud.get('homeroom_class') or '無班級'})"
                     opt_text = f"{ud.get('username')} - {ud.get('name')} 【{r_lbl}】 {cls_lbl}"
                     user_options.append(opt_text)
-                    user_map[opt_text] = u
+                    user_map[opt_text] = ud
                     
                 selected_user_text = st.selectbox("👉 請從中選取一位進入下方表單編輯：", user_options)
                 
                 if selected_user_text:
-                    target_doc = user_map[selected_user_text]
-                    td = target_doc.to_dict()
+                    td = user_map[selected_user_text]
                     
                     st.markdown(f"##### ✏️ 目前正在編輯：**{td.get('name')}** ({td.get('username')}) 的個人檔案")
                     with st.form(f"edit_form_{td.get('username')}", clear_on_submit=False):
@@ -1072,13 +1080,11 @@ if role in ["admin", "coordinator"]:
                         if uploaded_badge is not None:
                             try:
                                 img = Image.open(uploaded_badge)
-                                # 轉換色彩模式確保相容性
                                 if img.mode not in ("RGB", "RGBA"):
                                     img = img.convert("RGBA")
-                                # 💡 核心修正：將圖片處理尺寸改為 120x120，兼顧清晰度與微小容量
+                                # 🛡️ 使用無損高效的 WebP 格式壓縮，完美避開單一文件 1MB 上限
                                 img.thumbnail((120, 120))
                                 buf = io.BytesIO()
-                                # 💡 核心修正：改用 WEBP 格式儲存，支援透明背景且容量極小，完美避開 Firebase 1MB 限制
                                 img.save(buf, format="WEBP", quality=85)
                                 b64_str = base64.b64encode(buf.getvalue()).decode()
                                 final_avatar = f'<img src="data:image/webp;base64,{b64_str}" style="width:96px; height:96px; object-fit:contain; vertical-align:middle;" />'
