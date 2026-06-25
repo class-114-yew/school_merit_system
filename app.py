@@ -1085,7 +1085,7 @@ if role in ["admin", "coordinator"]:
                                 img.save(buf, format="PNG")
                                 b64_str = base64.b64encode(buf.getvalue()).decode()
                                 # 💡 已修正：將 HTML 顯示大小設為優化的 24px
-                                final_avatar = f'<img src="data:image/png;base64,{b64_str}" style="width:24px; height:24px; object-fit:contain; vertical-align:middle;" />'
+                                final_avatar = f'<img src="data:image/png;base64,{b64_str}" style="width:72px; height:72px; object-fit:contain; vertical-align:middle;" />'
                             except Exception as e:
                                 st.error(f"❌ 圖片處理失敗，請重新確認檔案是否毀損。錯誤原因: {e}")
                                 final_avatar = None
